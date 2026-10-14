@@ -1,0 +1,35 @@
+{
+  "name": "duperhuman",
+  "productName": "DuperHuman",
+  "version": "0.1.0",
+  "description": "Keyboard-first Gmail client with a built-in AI assistant. Local, no server.",
+  "main": "./out/main/index.js",
+  "author": "Tommy Keeley",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dist:mac": "electron-vite build && electron-builder --mac"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^8.0.0",
+    "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
