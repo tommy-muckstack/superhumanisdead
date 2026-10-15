@@ -4,8 +4,8 @@
   "outputDirectory": "out/web",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/superhumanisdead", "destination": "/index.html" },
-    { "source": "/superhumanisdead/login", "destination": "/login/index.html" },
+    { "source": "/superhumanisdead", "destination": "/" },
+    { "source": "/superhumanisdead/login", "destination": "/login" },
     { "source": "/superhumanisdead/:path*", "destination": "/:path*" }
   ]
 }
