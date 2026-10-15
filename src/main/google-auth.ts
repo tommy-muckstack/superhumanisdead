@@ -5,11 +5,11 @@ import type { Store, Tokens } from './store'
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const SCOPES = ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/calendar.readonly'].join(' ')
+const SCOPES = ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/calendar.events'].join(' ')
 
-const SUCCESS_PAGE = `<!doctype html><meta charset="utf-8"><title>DuperHuman</title>
+const SUCCESS_PAGE = `<!doctype html><meta charset="utf-8"><title>SuperhumanIsDead</title>
 <body style="font-family:-apple-system,Helvetica,sans-serif;background:#141210;color:#f3ede4;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center"><h1 style="font-weight:600">Signed in</h1><p style="opacity:.7">You can close this tab and go back to DuperHuman.</p></div></body>`
+<div style="text-align:center"><h1 style="font-weight:600">Signed in</h1><p style="opacity:.7">You can close this tab and go back to SuperhumanIsDead.</p></div></body>`
 
 function base64Url(buffer: Buffer): string {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -24,7 +24,7 @@ interface TokenResponse {
 }
 
 export class GoogleAuth {
-  private refreshing: Promise<string> | null = null
+  private refreshing = new Map<string, Promise<string>>()
 
   constructor(private readonly store: Store) {}
 
@@ -34,6 +34,14 @@ export class GoogleAuth {
 
   get email(): string {
     return this.store.tokens?.email ?? ''
+  }
+
+  get emails(): string[] {
+    return this.store.accounts.map((entry) => entry.email)
+  }
+
+  switchTo(email: string): void {
+    this.store.setActive(email)
   }
 
   async signIn(): Promise<Tokens> {
@@ -76,7 +84,7 @@ export class GoogleAuth {
     })
     if (googleClientSecret) body.set('client_secret', googleClientSecret)
     const token = await this.postToken(body)
-    if (!token.refresh_token) throw new Error('Google did not return a refresh token. Remove DuperHuman from your Google account permissions and sign in again.')
+    if (!token.refresh_token) throw new Error('Google did not return a refresh token. Remove SuperhumanIsDead from your Google account permissions and sign in again.')
     const email = await this.fetchEmail(token.access_token)
     const tokens: Tokens = {
       accessToken: token.access_token,
@@ -84,13 +92,14 @@ export class GoogleAuth {
       expiresAt: Date.now() + token.expires_in * 1000 - 60_000,
       email,
     }
-    this.store.setTokens(tokens)
+    this.store.upsertTokens(tokens, true)
     return tokens
   }
 
+  /** Sign out the active account only. */
   async signOut(): Promise<void> {
     const tokens = this.store.tokens
-    this.store.setTokens(null)
+    if (tokens) this.store.removeAccount(tokens.email)
     if (!tokens) return
     try {
       await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokens.refreshToken)}`, { method: 'POST' })
@@ -99,16 +108,15 @@ export class GoogleAuth {
     }
   }
 
-  async accessToken(): Promise<string> {
-    const tokens = this.store.tokens
+  async accessToken(email?: string): Promise<string> {
+    const tokens = email ? this.store.tokensFor(email) : this.store.tokens
     if (!tokens) throw new Error('Not signed in')
     if (Date.now() < tokens.expiresAt) return tokens.accessToken
-    if (!this.refreshing) {
-      this.refreshing = this.refresh(tokens).finally(() => {
-        this.refreshing = null
-      })
-    }
-    return this.refreshing
+    const pending = this.refreshing.get(tokens.email)
+    if (pending) return pending
+    const promise = this.refresh(tokens).finally(() => this.refreshing.delete(tokens.email))
+    this.refreshing.set(tokens.email, promise)
+    return promise
   }
 
   private async refresh(tokens: Tokens): Promise<string> {
@@ -126,7 +134,7 @@ export class GoogleAuth {
       refreshToken: token.refresh_token ?? tokens.refreshToken,
       expiresAt: Date.now() + token.expires_in * 1000 - 60_000,
     }
-    this.store.setTokens(next)
+    this.store.upsertTokens(next)
     return next.accessToken
   }
 
@@ -138,7 +146,7 @@ export class GoogleAuth {
     })
     const json = (await response.json()) as TokenResponse
     if (!response.ok || json.error) {
-      if (json.error === 'invalid_grant') this.store.setTokens(null)
+      if (json.error === 'invalid_grant' && this.store.tokens) this.store.removeAccount(this.store.tokens.email)
       throw new Error(`Google sign-in failed: ${json.error_description ?? json.error ?? response.status}`)
     }
     return json

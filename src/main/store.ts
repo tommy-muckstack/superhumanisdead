@@ -12,14 +12,16 @@ export interface Tokens {
 
 interface Persisted {
   settings: Settings
-  tokens: Tokens | null
+  accounts: Tokens[]
+  active: string
   snoozes: Snooze[]
   scheduled: ScheduledSend[]
 }
 
 const DEFAULTS: Persisted = {
-  settings: { googleClientId: '', googleClientSecret: '', anthropicApiKey: '', aiModel: '', aiProvider: 'anthropic', aiBaseUrl: '', openaiApiKey: '', aiPersona: '', signature: '', theme: 'light', undoSendSeconds: 10, remindWeekdaysOnly: false, readStatusHost: '', autoAdvance: 'older', instantReplies: true, autoSummarize: true },
-  tokens: null,
+  settings: { googleClientId: '', googleClientSecret: '', anthropicApiKey: '', aiModel: '', aiProvider: 'anthropic', aiBaseUrl: '', openaiApiKey: '', aiPersona: '', signature: '', theme: 'light', undoSendSeconds: 10, remindWeekdaysOnly: false, readStatusHost: '', readStatusEnabled: false, autoAdvance: 'older', instantReplies: true, autoSummarize: true },
+  accounts: [],
+  active: '',
   snoozes: [],
   scheduled: [],
 }
@@ -58,9 +60,11 @@ export class Store {
     if (!existsSync(path)) return structuredClone(DEFAULTS)
     try {
       const parsed = JSON.parse(decrypt(readFileSync(path))) as Partial<Persisted>
+      const legacy = parsed as { tokens?: Tokens | null }
       return {
         settings: { ...DEFAULTS.settings, ...(parsed.settings ?? {}) },
-        tokens: parsed.tokens ?? null,
+        accounts: parsed.accounts ?? (legacy.tokens ? [legacy.tokens] : []),
+        active: parsed.active ?? legacy.tokens?.email ?? '',
         snoozes: parsed.snoozes ?? [],
         scheduled: parsed.scheduled ?? [],
       }
@@ -84,13 +88,40 @@ export class Store {
     return this.settings
   }
 
+  /** Tokens of the active account. */
   get tokens(): Tokens | null {
-    return this.state.tokens ? { ...this.state.tokens } : null
+    const found = this.state.accounts.find((entry) => entry.email === this.state.active) ?? this.state.accounts[0]
+    return found ? { ...found } : null
   }
 
-  setTokens(tokens: Tokens | null): void {
-    this.state.tokens = tokens
+  get accounts(): Tokens[] {
+    return this.state.accounts.map((entry) => ({ ...entry }))
+  }
+
+  tokensFor(email: string): Tokens | null {
+    const found = this.state.accounts.find((entry) => entry.email === email)
+    return found ? { ...found } : null
+  }
+
+  /** Insert or update an account's tokens. Pass `activate` to make it the active account. */
+  upsertTokens(tokens: Tokens, activate = false): void {
+    const others = this.state.accounts.filter((entry) => entry.email !== tokens.email)
+    this.state.accounts = [...others, tokens].sort((a, b) => this.state.accounts.findIndex((x) => x.email === a.email) - this.state.accounts.findIndex((x) => x.email === b.email))
+    if (activate || !this.state.active) this.state.active = tokens.email
     this.save()
+  }
+
+  removeAccount(email: string): void {
+    this.state.accounts = this.state.accounts.filter((entry) => entry.email !== email)
+    if (this.state.active === email) this.state.active = this.state.accounts[0]?.email ?? ''
+    this.save()
+  }
+
+  setActive(email: string): void {
+    if (this.state.accounts.some((entry) => entry.email === email)) {
+      this.state.active = email
+      this.save()
+    }
   }
 
   get snoozes(): Snooze[] {

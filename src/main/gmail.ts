@@ -6,6 +6,8 @@ export interface GmailInit {
   method?: string
   body?: unknown
   query?: Record<string, string | string[] | undefined>
+  /** Act as this connected account instead of the active one. */
+  account?: string
 }
 
 export class Gmail {
@@ -19,7 +21,7 @@ export class Gmail {
       else url.searchParams.set(key, value)
     }
     const attempt = async (retryOnAuth: boolean): Promise<T> => {
-      const token = await this.auth.accessToken()
+      const token = await this.auth.accessToken(init.account)
       const response = await fetch(url, {
         method: init.method ?? 'GET',
         headers: {

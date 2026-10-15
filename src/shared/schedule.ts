@@ -9,6 +9,8 @@ export interface ScheduledSend {
   createdAt: number
   /** Optional reminder to put the thread back if nobody replies. */
   remindIfNoReplyAt?: number
+  /** Account to send from (multi-account). */
+  account?: string
 }
 
 export const UNDO_SEND_SECONDS = [0, 5, 10, 20, 30] as const

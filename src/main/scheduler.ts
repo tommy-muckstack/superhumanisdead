@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { base64Url, buildRawMessage } from '@shared/mime'
 import { dueSends } from '@shared/schedule'
+import { injectPixel, pixelUrl } from '@shared/read-status'
 import type { ScheduledSend } from '@shared/types'
 import type { Gmail } from './gmail'
 import type { Snoozes } from './snooze'
@@ -32,11 +33,12 @@ export class Scheduler {
   }
 
   list(): ScheduledSend[] {
-    return this.store.scheduled.sort((a, b) => a.sendAt - b.sendAt)
+    const me = this.from()
+    return this.store.scheduled.filter((item) => !item.account || item.account === me).sort((a, b) => a.sendAt - b.sendAt)
   }
 
   add(item: ScheduledSend): ScheduledSend[] {
-    this.store.setScheduled([...this.store.scheduled.filter((entry) => entry.id !== item.id), item])
+    this.store.setScheduled([...this.store.scheduled.filter((entry) => entry.id !== item.id), { ...item, account: item.account ?? this.from() }])
     this.arm()
     return this.list()
   }
@@ -55,9 +57,16 @@ export class Scheduler {
     return this.list()
   }
 
+  /** Read statuses: add the pixel only when the user turned tracking on AND set a host. */
+  private withTracking(mail: ScheduledSend['mail']): ScheduledSend['mail'] {
+    const { readStatusEnabled, readStatusHost } = this.store.settings
+    if (!readStatusEnabled || !readStatusHost || !mail.trackToken || !mail.html) return mail
+    return { ...mail, html: injectPixel(mail.html, pixelUrl(readStatusHost, mail.trackToken)) }
+  }
+
   private arm(): void {
     if (this.timer) clearTimeout(this.timer)
-    const next = this.list()[0]
+    const next = [...this.store.scheduled].sort((a, b) => a.sendAt - b.sendAt)[0]
     if (!next) return
     // Re-check at least every minute so sleep/wake drift cannot strand an item.
     const delay = Math.min(Math.max(next.sendAt - Date.now(), 0), 60_000)
@@ -74,14 +83,17 @@ export class Scheduler {
     if (this.sending.has(item.id)) return
     this.sending.add(item.id)
     try {
-      const raw = base64Url(buildRawMessage(item.mail, this.from()))
+      const account = item.account ?? this.from()
+      const mail = this.withTracking(item.mail)
+      const raw = base64Url(buildRawMessage(mail, account))
       const result = await this.gmail.request<{ id: string; threadId: string }>('messages/send', {
         method: 'POST',
+        account,
         body: { raw, threadId: item.mail.threadId },
       })
       this.store.setScheduled(this.store.scheduled.filter((entry) => entry.id !== item.id))
       if (item.remindIfNoReplyAt) {
-        await this.snoozes.add({ threadId: result.threadId, until: item.remindIfNoReplyAt, subject: item.mail.subject, ifNoReply: true, setAt: Date.now() })
+        await this.snoozes.add({ threadId: result.threadId, until: item.remindIfNoReplyAt, subject: item.mail.subject, ifNoReply: true, setAt: Date.now(), account })
       }
       this.window()?.webContents.send('schedule:sent', item, { threadId: result.threadId })
     } catch (error) {

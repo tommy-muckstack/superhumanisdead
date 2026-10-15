@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AiRequest, DuperApi, ScheduledSend, Settings, Snooze, ThreadSummary } from '@shared/types'
+import type { AiRequest, DuperApi, NewEvent, ScheduledSend, Settings, Snooze, ThreadSummary } from '@shared/types'
 
 let streamCounter = 0
 
@@ -12,9 +12,11 @@ const api: DuperApi = {
     status: () => ipcRenderer.invoke('auth:status'),
     signIn: () => ipcRenderer.invoke('auth:signIn'),
     signOut: () => ipcRenderer.invoke('auth:signOut'),
+    switchTo: (email: string) => ipcRenderer.invoke('auth:switchTo', email),
   },
   gmail: {
     request: (path, init) => ipcRenderer.invoke('gmail:request', path, init),
+    attachment: (messageId: string, attachmentId: string) => ipcRenderer.invoke('gmail:attachment', messageId, attachmentId),
   },
   snooze: {
     list: () => ipcRenderer.invoke('snooze:list'),
@@ -55,9 +57,19 @@ const api: DuperApi = {
   },
   calendar: {
     events: (from: number, to: number) => ipcRenderer.invoke('calendar:events', from, to),
+    create: (event: NewEvent) => ipcRenderer.invoke('calendar:create', event),
+  },
+  files: {
+    pick: () => ipcRenderer.invoke('files:pick'),
+    save: (filename: string, base64: string) => ipcRenderer.invoke('files:save', filename, base64),
+  },
+  print: (html: string) => ipcRenderer.invoke('print', html),
+  readStatus: {
+    fetch: (tokens: string[]) => ipcRenderer.invoke('readStatus:fetch', tokens),
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+    post: (url: string, body: string) => ipcRenderer.invoke('shell:post', url, body),
   },
 }
 

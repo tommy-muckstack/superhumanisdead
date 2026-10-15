@@ -28,13 +28,17 @@ export class Snoozes {
     this.timer = null
   }
 
+  /** Reminders for the active account (reminders without an account predate multi-account). */
   list(): Snooze[] {
-    return this.store.snoozes.sort((a, b) => a.until - b.until)
+    const me = this.me()
+    return this.store.snoozes.filter((entry) => !entry.account || entry.account === me).sort((a, b) => a.until - b.until)
   }
 
   async add(snooze: Snooze): Promise<Snooze[]> {
+    snooze = { ...snooze, account: snooze.account ?? this.me() }
     await this.gmail.request(`threads/${snooze.threadId}/modify`, {
       method: 'POST',
+      account: snooze.account,
       body: { removeLabelIds: ['INBOX'] },
     })
     const others = this.store.snoozes.filter((entry) => entry.threadId !== snooze.threadId)
@@ -54,14 +58,14 @@ export class Snoozes {
   private async stillNoReply(snooze: Snooze): Promise<boolean> {
     const thread = await this.gmail.request<{ messages?: { internalDate: string; payload?: { headers?: { name: string; value: string }[] } }[] }>(
       `threads/${snooze.threadId}`,
-      { query: { format: 'metadata', metadataHeaders: ['From'] } },
+      { account: snooze.account, query: { format: 'metadata', metadataHeaders: ['From'] } },
     )
     const messages = (thread.messages ?? []).map((message) => {
       const from = message.payload?.headers?.find((header) => header.name.toLowerCase() === 'from')?.value ?? ''
       const email = /<([^>]+)>/.exec(from)?.[1] ?? from
       return { from: { email: email.trim() }, date: Number(message.internalDate) }
     })
-    return shouldRemind(snooze.setAt ?? 0, messages, this.me())
+    return shouldRemind(snooze.setAt ?? 0, messages, snooze.account ?? this.me())
   }
 
   private async wakeDue(): Promise<void> {
@@ -78,10 +82,11 @@ export class Snoozes {
           }
           await this.gmail.request(`threads/${snooze.threadId}/modify`, {
             method: 'POST',
+            account: snooze.account,
             body: { addLabelIds: ['INBOX', 'UNREAD'] },
           })
           this.store.setSnoozes(this.store.snoozes.filter((entry) => entry.threadId !== snooze.threadId))
-          this.window()?.webContents.send('snooze:wake', snooze)
+          if (!snooze.account || snooze.account === this.me()) this.window()?.webContents.send('snooze:wake', snooze)
         } catch (error) {
           console.error('[snooze] could not wake thread', snooze.threadId, error)
         }

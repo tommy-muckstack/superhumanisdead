@@ -6,3 +6,4 @@ dist
 .env
 .env.*
 web/.env
+tools/opens.json

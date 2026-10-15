@@ -1,8 +1,8 @@
 export type Split = 'important' | 'other' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'done' | 'spam' | 'trash' | 'all'
 
 import type { ScheduledSend } from './schedule'
-import type { CalEvent } from './calendar'
-export type { ScheduledSend, CalEvent }
+import type { CalEvent, NewEvent } from './calendar'
+export type { ScheduledSend, CalEvent, NewEvent }
 
 export interface Address {
   name: string
@@ -59,6 +59,8 @@ export interface Snooze {
   threadId: string
   until: number
   subject: string
+  /** Account the thread belongs to (multi-account). */
+  account?: string
   /** Only bring it back if nobody replied after `setAt`. */
   ifNoReply?: boolean
   setAt?: number
@@ -82,8 +84,10 @@ export interface Settings {
   theme: Theme
   undoSendSeconds: number
   remindWeekdaysOnly: boolean
-  /** Optional pixel server for read statuses. Empty = off. */
+  /** Pixel host for read statuses, e.g. https://pixel.example.com. Empty = off (nothing is added to mail). */
   readStatusHost: string
+  /** Master switch: even with a host set, nothing is tracked unless this is on. */
+  readStatusEnabled: boolean
   autoAdvance: 'older' | 'newer' | 'list'
   instantReplies: boolean
   autoSummarize: boolean
@@ -92,9 +96,13 @@ export interface Settings {
 export interface Account {
   email: string
   signedIn: boolean
+  /** Every connected account (the active one included), in connection order. */
+  all?: string[]
 }
 
 export interface OutgoingMail {
+  /** Read-status tracking token embedded as a pixel (only when enabled in Settings). */
+  trackToken?: string
   to: string[]
   cc: string[]
   bcc: string[]
@@ -152,9 +160,12 @@ export interface DuperApi {
     status: () => Promise<Account>
     signIn: () => Promise<Account>
     signOut: () => Promise<void>
+    switchTo: (email: string) => Promise<Account>
   }
   gmail: {
     request: <T>(path: string, init?: { method?: string; body?: unknown; query?: Record<string, string | string[] | undefined> }) => Promise<T>
+    /** Download an attachment's bytes (standard base64). */
+    attachment: (messageId: string, attachmentId: string) => Promise<string>
   }
   snooze: {
     list: () => Promise<Snooze[]>
@@ -177,9 +188,23 @@ export interface DuperApi {
   }
   calendar: {
     events: (from: number, to: number) => Promise<CalEvent[]>
+    create: (event: NewEvent) => Promise<CalEvent>
+  }
+  files: {
+    /** Open a native file picker and return the chosen files as attachments. */
+    pick: () => Promise<OutgoingAttachment[]>
+    /** Save base64 data via a save dialog (attachment download). Returns the path, or null if cancelled. */
+    save: (filename: string, base64: string) => Promise<string | null>
+  }
+  print: (html: string) => Promise<void>
+  readStatus: {
+    /** Opens recorded for sent-message tokens, from the user's pixel host. */
+    fetch: (tokens: string[]) => Promise<Record<string, { at: number; userAgent?: string }[]>>
   }
   shell: {
     openExternal: (url: string) => Promise<void>
+    /** One-click unsubscribe POST (RFC 8058) from the main process. */
+    post: (url: string, body: string) => Promise<number>
   }
 }
 
