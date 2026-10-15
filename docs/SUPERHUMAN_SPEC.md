@@ -838,3 +838,5 @@ Where this section conflicts with the estimates in §1 and §3, **this section w
 - **Write with AI error state:** not seen.
 - **Billing details:** behind the admin sign-in.
 - **Mobile apps:** not inspected.
+
+> Reference screenshots of the original app used during research are not included in this repository (third-party assets). Image links in this spec that point at `docs/superhuman-shots/` are intentionally absent.
