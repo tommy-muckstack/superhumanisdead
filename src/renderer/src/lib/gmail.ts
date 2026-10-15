@@ -93,7 +93,21 @@ export function setUnread(id: string, unread: boolean): Promise<void> {
 }
 
 export function trash(id: string): Promise<void> {
+  if (id.startsWith('d') && window.duperDemo) return modifyThread(id, ['TRASH'], ['INBOX'])
   return window.duper.gmail.request(`threads/${id}/trash`, { method: 'POST' })
+}
+
+export function untrash(id: string): Promise<void> {
+  if (id.startsWith('d') && window.duperDemo) return modifyThread(id, ['INBOX'], ['TRASH'])
+  return window.duper.gmail.request(`threads/${id}/untrash`, { method: 'POST' }).then(() => modifyThread(id, ['INBOX'], []))
+}
+
+export function spam(id: string): Promise<void> {
+  return modifyThread(id, ['SPAM'], ['INBOX'])
+}
+
+export function unspam(id: string): Promise<void> {
+  return modifyThread(id, ['INBOX'], ['SPAM'])
 }
 
 export async function send(mail: OutgoingMail, from: string): Promise<{ id: string; threadId: string }> {

@@ -122,3 +122,12 @@ npm run build:web   # static files in out/web, served under /superhumanisdead/
 
 Design tokens and the font (Inter, OFL, closest open match to Superhuman's sans) come from
 the shared IsDead design system; refresh with `npm run sync:design`.
+
+## Keyboard map and features
+
+The full Superhuman keyboard map lives in `src/shared/keys.ts` (⌘K → Keyboard shortcuts shows it).
+Highlights: `E` done, `⇧E` not done, `H` remind me (natural language, "only if nobody replies"),
+`#` trash, `!` spam, `?` Ask AI, `0` calendar (`-` `T` `=` to move days), `g ;` snippets,
+`;name` inline snippets and `⌘;` picker in the composer, `⌘⇧L` send later, `⌘⇧H` remind if no reply,
+`⌘⇧Z` send instantly, `⌘⇧↵` send and mark done. Undo send uses the delay set in Settings.
+Calendar needs the `calendar.readonly` scope: sign out and back in after upgrading.

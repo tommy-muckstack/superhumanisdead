@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { applyHint, searchHints } from '@shared/compose'
 import { SPLITS } from '@shared/splits'
 import type { Split, ThreadSummary } from '@shared/types'
 import { avatarColor, initials, participantsLabel, whenShort, whenSnooze } from '../lib/format'
@@ -15,7 +16,7 @@ interface Props {
   search: string
   searchRef: React.RefObject<HTMLInputElement | null>
   onSearch: (value: string) => void
-  onSearchSubmit: () => void
+  onSearchSubmit: (value?: string) => void
   onSelectSplit: (split: Split) => void
   onSelect: (index: number) => void
   onOpen: (index: number) => void
@@ -27,6 +28,9 @@ const VISIBLE_TABS: Split[] = ['important', 'other', 'starred', 'snoozed']
 export function ThreadList(props: Props) {
   const { threads, selected } = props
   const rowsRef = useRef<HTMLDivElement>(null)
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [hintIndex, setHintIndex] = useState(-1)
+  const hints = searchFocused ? searchHints(props.search).slice(0, 8) : []
 
   useEffect(() => {
     const row = rowsRef.current?.children[selected] as HTMLElement | undefined
@@ -57,21 +61,56 @@ export function ThreadList(props: Props) {
             ref={props.searchRef}
             value={props.search}
             placeholder="Search"
-            onChange={(event) => props.onSearch(event.target.value)}
+            onChange={(event) => {
+              props.onSearch(event.target.value)
+              setHintIndex(-1)
+            }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
             onKeyDown={(event) => {
+              if (hints.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                event.preventDefault()
+                setHintIndex((index) => (event.key === 'ArrowDown' ? Math.min(index + 1, hints.length - 1) : Math.max(index - 1, -1)))
+                event.stopPropagation()
+                return
+              }
+              if ((event.key === 'Tab' || event.key === 'Enter') && hintIndex >= 0 && hints[hintIndex]) {
+                event.preventDefault()
+                props.onSearch(applyHint(props.search, hints[hintIndex]?.syntax ?? ''))
+                setHintIndex(-1)
+                event.stopPropagation()
+                return
+              }
               if (event.key === 'Enter') {
                 props.onSearchSubmit()
                 ;(event.target as HTMLInputElement).blur()
               }
               if (event.key === 'Escape') {
                 props.onSearch('')
-                props.onSearchSubmit()
+                props.onSearchSubmit('')
                 ;(event.target as HTMLInputElement).blur()
               }
               event.stopPropagation()
             }}
           />
           <kbd>/</kbd>
+          {hints.length > 0 && (
+            <div className="search-hints">
+              {hints.map((hint, index) => (
+                <div
+                  key={hint.syntax}
+                  className={`item${index === hintIndex ? ' active' : ''}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    props.onSearch(applyHint(props.search, hint.syntax))
+                  }}
+                >
+                  <code>{hint.syntax}</code>
+                  <span>{hint.hint}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

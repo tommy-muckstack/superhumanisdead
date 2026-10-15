@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BINDINGS, KeySequencer, type Command } from '@shared/keys'
 import { messageText } from '@shared/gmail-parse'
-import { formatAddress, quoteForReply, textToHtml } from '@shared/mime'
+import { formatAddress, quoteForReply } from '@shared/mime'
 import { SPLITS } from '@shared/splits'
-import type { Account, Settings, Snooze, Split, Thread, ThreadSummary } from '@shared/types'
-import { Composer, type Draft } from './components/Composer'
-import { CommandPalette, Shortcuts, SnoozeMenu, Toasts, type PaletteItem, type Toast } from './components/Overlays'
+import { draftToMail } from '@shared/compose'
+import { parseInstantReplies, parseWritten, type RewriteStyle } from '@shared/ai-prompts'
+import type { Snippet } from '@shared/snippets'
+import type { Account, ScheduledSend, Settings, Snooze, Split, Thread, ThreadSummary } from '@shared/types'
+import { Composer, type Draft, type SendMode } from './components/Composer'
+import { CommandPalette, Shortcuts, SnippetManager, TimePicker, Toasts, type PaletteItem, type Toast } from './components/Overlays'
+import { AskAi } from './components/AskAi'
+import { CalendarSidebar, startOfDay } from './components/CalendarSidebar'
+import { bumpSnippet, loadSnippets, saveSnippets } from './lib/snippets'
 import { Setup } from './components/Setup'
 import { ThreadList } from './components/ThreadList'
 import { ThreadView } from './components/ThreadView'
@@ -13,7 +19,11 @@ import * as gmail from './lib/gmail'
 import { DEMO_EMAIL } from './lib/demo'
 import { cleanReplySubject, forwardSubject, whenLong, whenSnooze } from './lib/format'
 
-type Overlay = 'palette' | 'shortcuts' | 'snooze' | 'settings' | null
+type Overlay = 'palette' | 'shortcuts' | 'snooze' | 'settings' | 'snippetManager' | null
+type Side = 'askAi' | 'calendar' | null
+
+const GOTO: Record<Split, Command> = { important: 'goImportant', other: 'goOther', starred: 'goStarred', snoozed: 'goSnoozed', sent: 'goSent', drafts: 'goDrafts', done: 'goDone', spam: 'goSpam', trash: 'goTrash', all: 'goAll' }
+const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 interface SplitState {
   threads: ThreadSummary[]
@@ -60,16 +70,24 @@ export function App() {
   const [snoozes, setSnoozes] = useState<Snooze[]>([])
   const [moved, setMoved] = useState<Record<string, 'important' | 'other'>>(loadMoved)
   const [movedThreads, setMovedThreads] = useState<Record<string, ThreadSummary>>({})
+  const [side, setSide] = useState<Side>(null)
+  const [calDay, setCalDay] = useState(() => startOfDay(Date.now()))
+  const [snippets, setSnippets] = useState<Snippet[]>(loadSnippets)
+  const [instant, setInstant] = useState<{ threadId: string; replies: string[] } | null>(null)
+  const [expandAll, setExpandAll] = useState(0)
+  const [scheduledCount, setScheduledCount] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
   const sequencer = useMemo(() => new KeySequencer(), [])
   const toastId = useRef(0)
   const me = account.email
 
-  const toast = useCallback((text: string, options: { undo?: () => void; error?: boolean } = {}) => {
+  const toast = useCallback((text: string, options: { undo?: () => void; error?: boolean; ttl?: number } = {}) => {
     const id = ++toastId.current
     setToasts((previous) => [...previous.slice(-2), { id, text, ...options }])
-    setTimeout(() => setToasts((previous) => previous.filter((entry) => entry.id !== id)), options.undo ? 6000 : 3500)
+    setTimeout(() => setToasts((previous) => previous.filter((entry) => entry.id !== id)), options.ttl ?? (options.undo ? 6000 : 3500))
+    return id
   }, [])
+  const dismissToast = useCallback((id: number) => setToasts((previous) => previous.filter((entry) => entry.id !== id)), [])
 
   const fail = useCallback((error: unknown) => toast(error instanceof Error ? error.message : String(error), { error: true }), [toast])
 
@@ -217,6 +235,31 @@ export function App() {
 
   useEffect(() => localStorage.setItem(MOVED_KEY, JSON.stringify(moved)), [moved])
 
+  // Instant Reply and auto-summary: quiet best-effort calls when an AI key is set.
+  useEffect(() => {
+    if (!openThread || !settings) return
+    const hasKey = Boolean(settings.aiProvider === 'openai' ? settings.openaiApiKey || settings.aiBaseUrl : settings.anthropicApiKey)
+    if (!hasKey) return
+    let cancelled = false
+    const last = openThread.messages[openThread.messages.length - 1]
+    if (settings.instantReplies && last && last.from.email !== me) {
+      window.duper.ai
+        .complete({ kind: 'instantReplies', thread: openThread, me })
+        .then((text) => !cancelled && setInstant({ threadId: openThread.id, replies: parseInstantReplies(text) }))
+        .catch(() => undefined)
+    }
+    if (settings.autoSummarize && openThread.messages.length >= 3) {
+      window.duper.ai
+        .complete({ kind: 'summarize', thread: openThread, me })
+        .then((text) => !cancelled && setSummary({ text, loading: false }))
+        .catch(() => undefined)
+    }
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openThread?.id])
+
   const targets = useCallback((): ThreadSummary[] => {
     if (checked.size) return visibleThreads.filter((thread) => checked.has(thread.id))
     return selectedThread ? [selectedThread] : []
@@ -243,7 +286,7 @@ export function App() {
   }, [targets, split, removeFromLists, insertInto, toast, fail])
 
   const snoozeUntil = useCallback(
-    async (until: Date) => {
+    async (until: Date, ifNoReply = false) => {
       setOverlay(null)
       const list = targets()
       if (!list.length) return
@@ -256,11 +299,11 @@ export function App() {
             setSnoozes((previous) => [...previous, { threadId: thread.id, until: until.getTime(), subject: thread.subject }])
             continue
           }
-          const next = await window.duper.snooze.add({ threadId: thread.id, until: until.getTime(), subject: thread.subject })
+          const next = await window.duper.snooze.add({ threadId: thread.id, until: until.getTime(), subject: thread.subject, ifNoReply, setAt: Date.now() })
           setSnoozes(next)
         }
         setSplits((previous) => ({ ...previous, snoozed: { ...(previous.snoozed ?? EMPTY_SPLIT), loaded: false } }))
-        toast(`Snoozed until ${whenSnooze(until.getTime())}`, {
+        toast(`Remind ${whenSnooze(until.getTime())}${ifNoReply ? ' if no reply' : ''}`, {
           undo: () => {
             list.forEach((thread) => insertInto(split, thread))
             Promise.all(list.map((thread) => window.duper.snooze.remove(thread.id))).then((results) => results.at(-1) && setSnoozes(results.at(-1) ?? [])).catch(fail)
@@ -285,6 +328,28 @@ export function App() {
       fail(error)
     }
   }, [targets, removeFromLists, toast, loadSplit, fail])
+
+  const moveWithUndo = useCallback(
+    async (action: (id: string) => Promise<void>, reverse: (id: string) => Promise<void>, label: string) => {
+      const list = targets()
+      if (!list.length) return
+      list.forEach((thread) => removeFromLists(thread.id))
+      setChecked(new Set())
+      try {
+        await Promise.all(list.map((thread) => action(thread.id)))
+        toast(list.length > 1 ? `${label} ${list.length}` : label, {
+          undo: () => {
+            list.forEach((thread) => insertInto(split, thread))
+            Promise.all(list.map((thread) => reverse(thread.id))).catch(fail)
+          },
+        })
+      } catch (error) {
+        list.forEach((thread) => insertInto(split, thread))
+        fail(error)
+      }
+    },
+    [targets, removeFromLists, insertInto, split, toast, fail],
+  )
 
   const toggleStar = useCallback(() => {
     for (const thread of targets()) {
@@ -344,29 +409,86 @@ export function App() {
     }
   }, [pendingDraft, openThread, selectedThread?.id, startDraft])
 
-  const sendDraft = useCallback(async () => {
-    if (!draft || !me) return
-    const splitList = (value: string) => value.split(',').map((entry) => entry.trim()).filter(Boolean)
-    const signature = settings?.signature ? `\n\n${settings.signature}` : ''
-    const text = `${draft.body}${signature}${draft.quoted}`
-    setSending(true)
-    try {
-      await gmail.send(
-        { to: splitList(draft.to), cc: splitList(draft.cc), bcc: splitList(draft.bcc), subject: draft.subject, text, html: textToHtml(text), threadId: draft.threadId, inReplyTo: draft.inReplyTo, references: draft.references },
-        me,
-      )
-      setDraft(null)
-      toast('Sent')
-      if (draft.threadId && openThread?.id === draft.threadId) {
-        gmail.getThread(draft.threadId, me).then(setOpenThread).catch(fail)
-      }
+  const afterSend = useCallback(
+    (threadId?: string) => {
+      if (threadId && openThread?.id === threadId) gmail.getThread(threadId, me).then(setOpenThread).catch(fail)
       setSplits((previous) => ({ ...previous, sent: { ...(previous.sent ?? EMPTY_SPLIT), loaded: false } }))
-    } catch (error) {
-      fail(error)
-    } finally {
-      setSending(false)
-    }
-  }, [draft, me, settings, toast, openThread, fail])
+    },
+    [openThread, me, fail],
+  )
+
+  useEffect(() => {
+    if (!me || window.duperDemo) return
+    void window.duper.schedule.list().then((list) => setScheduledCount(list.filter((item) => item.sendAt - item.createdAt > 60_000).length))
+    return window.duper.schedule.onSent((item, result) => {
+      setScheduledCount((count) => (item.sendAt - item.createdAt > 60_000 ? Math.max(0, count - 1) : count))
+      if ('error' in result) toast(`Could not send "${item.mail.subject}": ${result.error}`, { error: true })
+      else {
+        toast(item.sendAt - item.createdAt > 60_000 ? `Sent scheduled: ${item.mail.subject}` : 'Sent')
+        afterSend(result.threadId)
+      }
+    })
+  }, [me, toast, afterSend])
+
+  /** Demo inbox has no main-process queue: emulate it with timers. */
+  const demoTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+
+  const sendDraft = useCallback(
+    async (mode: SendMode = 'normal') => {
+      if (!draft || !me) return
+      if (!draft.to.trim()) return
+      const saved = draft
+      const mail = draftToMail(draft, settings?.signature ?? '')
+      const now = Date.now()
+      const undoSeconds = mode === 'now' ? 0 : (settings?.undoSendSeconds ?? 10)
+      const scheduled = Boolean(draft.sendAt && draft.sendAt > now)
+      const item: ScheduledSend = { id: newId(), mail, createdAt: now, sendAt: scheduled ? (draft.sendAt as number) : now + undoSeconds * 1000, remindIfNoReplyAt: draft.remindAt }
+      setDraft(null)
+      if (mode === 'done' && draft.threadId) void markDone()
+      const restore = () => setDraft(saved)
+      try {
+        if (window.duperDemo) {
+          const deliver = () => {
+            demoTimers.current.delete(item.id)
+            void gmail.send(mail, me).then((result) => {
+              toast(scheduled ? `Sent scheduled: ${mail.subject}` : 'Sent')
+              afterSend(result.threadId)
+            })
+          }
+          demoTimers.current.set(item.id, setTimeout(deliver, Math.max(0, item.sendAt - now)))
+        } else {
+          await window.duper.schedule.add(item)
+          if (!scheduled && undoSeconds === 0) await window.duper.schedule.sendNow(item.id)
+        }
+        if (scheduled) setScheduledCount((count) => count + 1)
+        if (scheduled || undoSeconds > 0) {
+          toast(scheduled ? `Scheduled for ${whenSnooze(item.sendAt)}` : 'Sending…', {
+            ttl: scheduled ? 6000 : undoSeconds * 1000,
+            undo: () => {
+              if (window.duperDemo) {
+                const timer = demoTimers.current.get(item.id)
+                if (timer) clearTimeout(timer)
+                demoTimers.current.delete(item.id)
+                if (scheduled) setScheduledCount((count) => Math.max(0, count - 1))
+                restore()
+                return
+              }
+              void window.duper.schedule.cancel(item.id).then((cancelled) => {
+                if (cancelled) {
+                  if (scheduled) setScheduledCount((count) => Math.max(0, count - 1))
+                  restore()
+                } else toast('Already sent', { error: true })
+              })
+            },
+          })
+        }
+      } catch (error) {
+        restore()
+        fail(error)
+      }
+    },
+    [draft, me, settings, toast, fail, afterSend, markDone],
+  )
 
   const summarize = useCallback(async () => {
     if (!openThread) return
@@ -380,8 +502,44 @@ export function App() {
     }
   }, [openThread, me, fail])
 
+  const aiWrite = useCallback(
+    async (instruction?: string) => {
+      if (!instruction) return
+      setAiBusy(true)
+      try {
+        const text = await window.duper.ai.complete({ kind: 'write', me, instruction })
+        const written = parseWritten(text)
+        setDraft((previous) => (previous ? { ...previous, subject: previous.subject || written.subject, body: written.body } : previous))
+      } catch (error) {
+        fail(error)
+      } finally {
+        setAiBusy(false)
+      }
+    },
+    [me, fail],
+  )
+
+  const rewrite = useCallback(
+    async (style: RewriteStyle) => {
+      if (!draft?.body.trim()) return
+      const before = draft.body
+      setAiBusy(true)
+      try {
+        const text = await window.duper.ai.complete({ kind: 'rewrite', me, text: before, style })
+        setDraft((previous) => (previous ? { ...previous, body: text.trim() } : previous))
+        toast('Rewritten', { undo: () => setDraft((previous) => (previous ? { ...previous, body: before } : previous)) })
+      } catch (error) {
+        fail(error)
+      } finally {
+        setAiBusy(false)
+      }
+    },
+    [draft, me, toast, fail],
+  )
+
   const aiDraft = useCallback(
     async (instruction?: string) => {
+      if (draft?.mode === 'new' || (!openThread && draft)) return aiWrite(instruction)
       if (!openThread) return
       let current = draft
       if (!current || current.mode === 'new') {
@@ -401,7 +559,7 @@ export function App() {
         setAiBusy(false)
       }
     },
-    [openThread, draft, me, startDraft, fail],
+    [openThread, draft, me, startDraft, fail, aiWrite],
   )
 
   const triage = useCallback(async () => {
@@ -460,8 +618,78 @@ export function App() {
           break
         case 'open':
           break
+        case 'top':
+          setSelected(0)
+          break
+        case 'bottom':
+          setSelected(Math.max(visibleThreads.length - 1, 0))
+          break
+        case 'notDone':
+          void moveWithUndo(gmail.unarchive, gmail.archive, 'Moved to inbox')
+          break
+        case 'trash':
+          void moveWithUndo(gmail.trash, gmail.untrash, 'Trashed')
+          break
+        case 'spam':
+          void moveWithUndo(gmail.spam, gmail.unspam, 'Marked as spam')
+          break
+        case 'extendNext':
+        case 'extendPrev':
+          if (selectedThread) {
+            setChecked((previous) => new Set(previous).add(selectedThread.id))
+            setSelected((index) => {
+              const next = command === 'extendNext' ? Math.min(index + 1, visibleThreads.length - 1) : Math.max(index - 1, 0)
+              const thread = visibleThreads[next]
+              if (thread) setChecked((previous) => new Set(previous).add(thread.id))
+              return next
+            })
+          }
+          break
+        case 'selectAll':
+          setChecked(new Set(visibleThreads.map((thread) => thread.id)))
+          break
+        case 'expandAll':
+          setExpandAll((value) => value + 1)
+          break
+        case 'askAi':
+          setSide((value) => (value === 'askAi' ? null : 'askAi'))
+          break
+        case 'calendar':
+          setSide((value) => (value === 'calendar' ? null : 'calendar'))
+          break
+        case 'calToday':
+          if (side === 'calendar') setCalDay(startOfDay(Date.now()))
+          break
+        case 'calPrev':
+        case 'calNext':
+          if (side === 'calendar') setCalDay((day) => startOfDay(day + (command === 'calNext' ? 36 : -12) * 3_600_000))
+          break
+        case 'shareAvailability':
+          setSide('calendar')
+          toast('Click "Share availability" in the calendar to paste free times')
+          break
+        case 'snippets':
+        case 'goSnippets':
+          setOverlay('snippetManager')
+          break
+        case 'goSpam':
+          goto('spam')
+          break
+        case 'goTrash':
+          goto('trash')
+          break
+        case 'goAll':
+          goto('all')
+          break
+        case 'triage':
+          void triage()
+          break
+        case 'theme':
+          void window.duper.settings.set({ theme: settings?.theme === 'dark' ? 'light' : 'dark' }).then(setSettings)
+          break
         case 'back':
-          if (draft) setDraft(null)
+          if (side) setSide(null)
+          else if (draft) setDraft(null)
           else if (summary) setSummary(null)
           else setChecked(new Set())
           break
@@ -553,7 +781,7 @@ export function App() {
           break
       }
     },
-    [visibleThreads.length, splits, split, loadSplit, draft, summary, markDone, unsnooze, selectedThread, startDraft, toggleStar, toggleUnread, undo, summarize, aiDraft],
+    [visibleThreads, splits, split, loadSplit, draft, summary, markDone, unsnooze, selectedThread, startDraft, toggleStar, toggleUnread, undo, summarize, aiDraft, moveWithUndo, side, toast, triage, settings],
   )
 
   useEffect(() => {
@@ -570,20 +798,21 @@ export function App() {
   }, [overlay, sequencer, run])
 
   const paletteItems = useMemo<PaletteItem[]>(() => {
-    const commands: PaletteItem[] = BINDINGS.filter((binding) => !['next', 'prev', 'open', 'palette'].includes(binding.command)).map((binding) => ({
-      id: binding.command,
-      label: binding.label,
-      keys: binding.keys,
-      run: () => run(binding.command),
-    }))
+    const seen = new Set<Command>()
+    const commands: PaletteItem[] = []
+    for (const binding of BINDINGS) {
+      if (binding.scope !== 'global' || seen.has(binding.command) || ['next', 'prev', 'open', 'palette', 'back'].includes(binding.command)) continue
+      seen.add(binding.command)
+      const keys = BINDINGS.find((entry) => entry.command === binding.command && entry.keys)?.keys
+      commands.push({ id: binding.command, label: binding.label, hint: binding.section, keys, run: () => run(binding.command) })
+    }
     return [
-      { id: 'triage', label: 'Sort this list with AI', hint: 'Moves newsletters and notifications to Other', run: () => void triage() },
       ...commands,
-      { id: 'theme', label: 'Toggle dark theme', run: () => void saveSettings({ theme: settings?.theme === 'dark' ? 'light' : 'dark' }) },
+      { id: 'theme', label: 'Toggle dark theme', run: () => run('theme') },
       { id: 'settings', label: 'Settings', hint: account.email, run: () => setOverlay('settings') },
       { id: 'signout', label: 'Sign out', run: () => void window.duper.auth.signOut().then(() => setAccount({ email: '', signedIn: false })) },
     ]
-  }, [run, triage, account.email])
+  }, [run, account.email])
 
   useEffect(() => {
     const theme = settings?.theme ?? 'light'
@@ -614,7 +843,7 @@ export function App() {
     <div className="shell">
       <div className="titlebar">
         <span className="account">
-          <span className="wordmark">DuperHuman</span>
+          <span className="wordmark">SuperhumanIsDead</span>
           <span>·</span>
           <button onClick={() => setOverlay('settings')}>{account.email}</button>
         </span>
@@ -632,31 +861,105 @@ export function App() {
           search={search}
           searchRef={searchRef}
           onSearch={setSearch}
-          onSearchSubmit={() => {
-            setActiveSearch(search)
-            void loadSplit(split, { query: search })
+          onSearchSubmit={(value) => {
+            const query = value ?? search
+            setActiveSearch(query)
+            void loadSplit(split, { query })
           }}
-          onSelectSplit={(target) => run(({ important: 'goImportant', other: 'goOther', starred: 'goStarred', snoozed: 'goSnoozed', sent: 'goSent', drafts: 'goDrafts', done: 'goDone' } as const)[target])}
+          onSelectSplit={(target) => run(GOTO[target])}
           onSelect={setSelected}
           onOpen={setSelected}
           onLoadMore={() => void loadSplit(split, { more: true })}
         />
         <div className="pane">
-          <ThreadView thread={openThread} loading={threadLoading} me={me} summary={summary} onDismissSummary={() => setSummary(null)} />
+          <ThreadView
+            thread={openThread}
+            loading={threadLoading}
+            me={me}
+            summary={summary}
+            onDismissSummary={() => setSummary(null)}
+            expandAll={expandAll}
+            instantReplies={!draft && instant && instant.threadId === openThread?.id ? instant.replies : null}
+            onInstantReply={(text) => {
+              startDraft('reply')
+              setTimeout(() => setDraft((previous) => (previous ? { ...previous, body: text } : previous)))
+            }}
+          />
           {draft && (
-            <Composer draft={draft} sending={sending} aiBusy={aiBusy} onChange={setDraft} onSend={() => void sendDraft()} onDiscard={() => setDraft(null)} onAiDraft={(instruction) => void aiDraft(instruction)} />
+            <Composer
+              draft={draft}
+              sending={sending}
+              aiBusy={aiBusy}
+              snippets={snippets}
+              me={{ name: '', email: me }}
+              weekdaysOnly={settings.remindWeekdaysOnly}
+              onChange={setDraft}
+              onSend={(mode) => void sendDraft(mode)}
+              onDiscard={() => setDraft(null)}
+              onAiDraft={(instruction) => void aiDraft(instruction)}
+              onRewrite={(style) => void rewrite(style)}
+              onSnippetUsed={(snippet) => {
+                bumpSnippet(snippet.id)
+                setSnippets(loadSnippets())
+              }}
+              onManageSnippets={() => setOverlay('snippetManager')}
+            />
           )}
         </div>
+        {side === 'askAi' && (
+          <AskAi
+            thread={openThread}
+            threads={visibleThreads}
+            me={me}
+            onClose={() => setSide(null)}
+            onOpenThread={(id) => {
+              const index = visibleThreads.findIndex((thread) => thread.id === id)
+              if (index >= 0) setSelected(index)
+            }}
+            onUseAsReply={(text) => {
+              startDraft('reply')
+              setTimeout(() => setDraft((previous) => (previous ? { ...previous, body: text } : previous)))
+            }}
+          />
+        )}
+        {side === 'calendar' && (
+          <CalendarSidebar
+            day={calDay}
+            demo={Boolean(window.duperDemo)}
+            onClose={() => setSide(null)}
+            onShareAvailability={(text) => {
+              if (!text) return toast('No free time that day')
+              if (draft) setDraft({ ...draft, body: `${draft.body}${draft.body ? '\n\n' : ''}Here are some times that work for me:\n${text}` })
+              else {
+                void navigator.clipboard.writeText(text)
+                toast('Free times copied')
+              }
+            }}
+          />
+        )}
       </div>
       {overlay === 'palette' && <CommandPalette items={paletteItems} onClose={() => setOverlay(null)} />}
       {overlay === 'shortcuts' && <Shortcuts onClose={() => setOverlay(null)} />}
-      {overlay === 'snooze' && <SnoozeMenu onPick={(until) => void snoozeUntil(until)} onClose={() => setOverlay(null)} />}
+      {overlay === 'snooze' && <TimePicker kind="remind" weekdaysOnly={settings.remindWeekdaysOnly} onPick={(choice) => void snoozeUntil(choice.at, choice.ifNoReply)} onClose={() => setOverlay(null)} />}
+      {overlay === 'snippetManager' && (
+        <SnippetManager
+          snippets={snippets}
+          onSave={(list) => {
+            saveSnippets(list)
+            setSnippets(list)
+          }}
+          onClose={() => setOverlay(null)}
+        />
+      )}
       {overlay === 'settings' && (
         <Setup modal settings={settings} signedIn email={account.email} onSave={saveSettings} onSignIn={signIn} onSignOut={signOut} onClose={() => setOverlay(null)} />
       )}
-      <Toasts toasts={toasts} onUndo={(entry) => { entry.undo?.(); setToasts((previous) => previous.filter((item) => item.id !== entry.id)) }} />
+      <Toasts toasts={toasts} onUndo={(entry) => { entry.undo?.(); dismissToast(entry.id) }} />
       <div className="statusline">
-        {snoozes.length > 0 && <span>{snoozes.length} snoozed</span>}
+        {snoozes.length > 0 && <span>{snoozes.length} reminders</span>}
+        {scheduledCount > 0 && <span>{scheduledCount} scheduled</span>}
+        <span><kbd>0</kbd> calendar</span>
+        <span><kbd>?</kbd> ask AI</span>
         <span><kbd>⌘K</kbd> commands</span>
       </div>
     </div>

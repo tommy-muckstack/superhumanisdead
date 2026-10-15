@@ -9,17 +9,25 @@ interface Props {
   me: string
   summary: { text: string; loading: boolean } | null
   onDismissSummary: () => void
+  /** Instant Reply suggestions (null = not loaded / off). */
+  instantReplies?: string[] | null
+  onInstantReply?: (text: string) => void
+  /** Bumped by Shift+O to expand every message. */
+  expandAll?: number
 }
 
-const FRAME_STYLE = `<style>
-  html,body{margin:0;padding:0;background:transparent;color:#e9e9ec;font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:13.5px;line-height:1.55}
+function frameStyle(): string {
+  const dark = document.documentElement.dataset['theme'] === 'dark'
+  return `<style>
+  html,body{margin:0;padding:0;background:transparent;color:${dark ? '#F1F1F1' : '#141414'};font-family:'IsDead Inter',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:13.5px;line-height:1.55}
   body{overflow-x:hidden;word-wrap:break-word}
-  a{color:#8fa6ff}
+  a{color:${dark ? '#C4ACEA' : '#714CB6'}}
   img{max-width:100%;height:auto}
-  blockquote{border-left:2px solid #33363d;margin:8px 0;padding-left:12px;color:#a4a7b0}
+  blockquote{border-left:2px solid ${dark ? '#4A4846' : '#DEDBD5'};margin:8px 0;padding-left:12px;color:${dark ? '#A8A6A2' : '#73716D'}}
   table{max-width:100%}
   *{scrollbar-width:thin}
 </style>`
+}
 
 function HtmlBody({ html }: { html: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
@@ -28,7 +36,7 @@ function HtmlBody({ html }: { html: string }) {
     // Remote images are blocked by the frame CSP; links open in the system browser via the main process.
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src 'none'">`
     const base = `<base target="_blank">`
-    return `<!doctype html><html><head><meta charset="utf-8">${csp}${base}${FRAME_STYLE}</head><body>${html}</body></html>`
+    return `<!doctype html><html><head><meta charset="utf-8">${csp}${base}${frameStyle()}</head><body>${html}</body></html>`
   }, [html])
 
   useEffect(() => {
@@ -91,7 +99,7 @@ function Message({ message, expanded, onToggle, me }: { message: FullMessage; ex
   )
 }
 
-export function ThreadView({ thread, loading, me, summary, onDismissSummary }: Props) {
+export function ThreadView({ thread, loading, me, summary, onDismissSummary, instantReplies, onInstantReply, expandAll }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -106,14 +114,18 @@ export function ThreadView({ thread, loading, me, summary, onDismissSummary }: P
     scrollRef.current?.scrollTo({ top: 0 })
   }, [thread?.id])
 
+  useEffect(() => {
+    if (expandAll && thread) setExpanded(new Set(thread.messages.map((message) => message.id)))
+  }, [expandAll])
+
   if (!thread) {
     return (
       <div className="pane">
         <div className="empty">
           {loading ? <span className="spinner" /> : (
             <>
-              <div className="big">DuperHuman</div>
-              <div>Select a conversation, or press <kbd>?</kbd> for shortcuts.</div>
+              <div className="big">SuperhumanIsDead</div>
+              <div>Select a conversation, or press <kbd>⌘K</kbd> for commands.</div>
             </>
           )}
         </div>
@@ -151,6 +163,14 @@ export function ThreadView({ thread, loading, me, summary, onDismissSummary }: P
             onToggle={() => setExpanded((previous) => new Set(previous).add(message.id))}
           />
         ))}
+        {instantReplies && instantReplies.length > 0 && onInstantReply && (
+          <div className="instant-replies">
+            <span className="hint">Instant reply</span>
+            {instantReplies.map((reply) => (
+              <button key={reply} className="chip" onClick={() => onInstantReply(reply)}>{reply}</button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

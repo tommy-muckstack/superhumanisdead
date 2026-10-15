@@ -1,3 +1,4 @@
+import { matchThread, parseSearch } from '@shared/search'
 import type { Address, FullMessage, OutgoingMail, Split, Thread, ThreadSummary } from '@shared/types'
 import type { Page } from './gmail'
 
@@ -150,7 +151,7 @@ function summary(thread: Thread): ThreadSummary {
 
 export const demo = {
   listThreads(split: Split, search?: string): Page {
-    const needle = search?.toLowerCase() ?? ''
+    const query = search?.trim() ? parseSearch(search) : null
     const threads = [...store.values()]
       .filter((thread) => {
         const inbox = thread.labelIds.includes('INBOX')
@@ -160,12 +161,15 @@ export const demo = {
           case 'other': return inbox && other
           case 'starred': return thread.starred
           case 'sent': return thread.messages.some((message) => message.from.email === DEMO_EMAIL)
-          case 'done': return !inbox
+          case 'done': return !inbox && !thread.labelIds.includes('TRASH') && !thread.labelIds.includes('SPAM')
+          case 'spam': return thread.labelIds.includes('SPAM')
+          case 'trash': return thread.labelIds.includes('TRASH')
+          case 'all': return true
           default: return false
         }
       })
-      .filter((thread) => !needle || `${thread.subject} ${thread.snippet} ${thread.participants.map((address) => address.name).join(' ')}`.toLowerCase().includes(needle))
       .map(summary)
+      .filter((thread) => !query || matchThread(query, thread))
       .sort((a, b) => b.lastDate - a.lastDate)
     return { threads }
   },
