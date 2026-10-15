@@ -52,14 +52,34 @@ export interface Snooze {
   threadId: string
   until: number
   subject: string
+  /** Only bring it back if nobody replied after `setAt`. */
+  ifNoReply?: boolean
+  setAt?: number
 }
+
+export type Theme = 'light' | 'dark' | 'system'
 
 export interface Settings {
   googleClientId: string
   googleClientSecret: string
+  /** Legacy name kept for stored settings; used as the key for the Anthropic provider. */
   anthropicApiKey: string
   aiModel: string
+  /** 'anthropic' or any OpenAI-compatible endpoint. */
+  aiProvider: 'anthropic' | 'openai'
+  aiBaseUrl: string
+  openaiApiKey: string
+  /** One paragraph about the user, used by Write with AI and Instant Reply. */
+  aiPersona: string
   signature: string
+  theme: Theme
+  undoSendSeconds: number
+  remindWeekdaysOnly: boolean
+  /** Optional pixel server for read statuses. Empty = off. */
+  readStatusHost: string
+  autoAdvance: 'older' | 'newer' | 'list'
+  instantReplies: boolean
+  autoSummarize: boolean
 }
 
 export interface Account {
@@ -80,9 +100,16 @@ export interface OutgoingMail {
 }
 
 export interface AiRequest {
-  kind: 'summarize' | 'draft' | 'triage' | 'ask'
+  kind: 'summarize' | 'draft' | 'triage' | 'ask' | 'instantReplies' | 'write' | 'rewrite' | 'askInbox' | 'label'
   thread?: Thread
+  threads?: ThreadSummary[]
   instruction?: string
+  /** Text to rewrite. */
+  text?: string
+  /** Rewrite style: improve | shorten | lengthen | simplify | voice. */
+  style?: string
+  labels?: string[]
+  persona?: string
   me?: string
 }
 

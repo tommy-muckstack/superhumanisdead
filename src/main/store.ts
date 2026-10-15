@@ -17,7 +17,7 @@ interface Persisted {
 }
 
 const DEFAULTS: Persisted = {
-  settings: { googleClientId: '', googleClientSecret: '', anthropicApiKey: '', aiModel: 'claude-opus-5-5', signature: '' },
+  settings: { googleClientId: '', googleClientSecret: '', anthropicApiKey: '', aiModel: '', aiProvider: 'anthropic', aiBaseUrl: '', openaiApiKey: '', aiPersona: '', signature: '', theme: 'light', undoSendSeconds: 10, remindWeekdaysOnly: false, readStatusHost: '', autoAdvance: 'older', instantReplies: true, autoSummarize: true },
   tokens: null,
   snoozes: [],
 }

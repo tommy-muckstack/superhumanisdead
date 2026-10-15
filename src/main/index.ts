@@ -3,14 +3,14 @@ import { join } from 'node:path'
 import { Store } from './store'
 import { GoogleAuth } from './google-auth'
 import { Gmail, type GmailInit } from './gmail'
-import { Claude } from './claude'
+import { Assistant } from './assistant'
 import { Snoozes } from './snooze'
 import type { AiRequest, Settings, Snooze, ThreadSummary } from '@shared/types'
 
 const store = new Store()
 const auth = new GoogleAuth(store)
 const gmail = new Gmail(auth)
-const claude = new Claude(store)
+const claude = new Assistant(store)
 let mainWindow: BrowserWindow | null = null
 const snoozes = new Snoozes(store, gmail, () => mainWindow)
 
