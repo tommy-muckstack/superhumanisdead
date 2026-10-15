@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Settings, Snooze } from '@shared/types'
+import type { ScheduledSend, Settings, Snooze } from '@shared/types'
 
 export interface Tokens {
   accessToken: string
@@ -14,12 +14,14 @@ interface Persisted {
   settings: Settings
   tokens: Tokens | null
   snoozes: Snooze[]
+  scheduled: ScheduledSend[]
 }
 
 const DEFAULTS: Persisted = {
   settings: { googleClientId: '', googleClientSecret: '', anthropicApiKey: '', aiModel: '', aiProvider: 'anthropic', aiBaseUrl: '', openaiApiKey: '', aiPersona: '', signature: '', theme: 'light', undoSendSeconds: 10, remindWeekdaysOnly: false, readStatusHost: '', autoAdvance: 'older', instantReplies: true, autoSummarize: true },
   tokens: null,
   snoozes: [],
+  scheduled: [],
 }
 
 function filePath(): string {
@@ -60,6 +62,7 @@ export class Store {
         settings: { ...DEFAULTS.settings, ...(parsed.settings ?? {}) },
         tokens: parsed.tokens ?? null,
         snoozes: parsed.snoozes ?? [],
+        scheduled: parsed.scheduled ?? [],
       }
     } catch (error) {
       console.error('[store] could not read store, starting fresh', error)
@@ -96,6 +99,15 @@ export class Store {
 
   setSnoozes(snoozes: Snooze[]): void {
     this.state.snoozes = snoozes
+    this.save()
+  }
+
+  get scheduled(): ScheduledSend[] {
+    return [...this.state.scheduled]
+  }
+
+  setScheduled(items: ScheduledSend[]): void {
+    this.state.scheduled = items
     this.save()
   }
 }

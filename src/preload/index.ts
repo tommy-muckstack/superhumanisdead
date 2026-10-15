@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AiRequest, DuperApi, Settings, Snooze, ThreadSummary } from '@shared/types'
+import type { AiRequest, DuperApi, ScheduledSend, Settings, Snooze, ThreadSummary } from '@shared/types'
 
 let streamCounter = 0
 
@@ -41,6 +41,20 @@ const api: DuperApi = {
       }
     },
     triage: (threads: ThreadSummary[], me: string) => ipcRenderer.invoke('ai:triage', threads, me),
+  },
+  schedule: {
+    list: () => ipcRenderer.invoke('schedule:list'),
+    add: (item: ScheduledSend) => ipcRenderer.invoke('schedule:add', item),
+    cancel: (id: string) => ipcRenderer.invoke('schedule:cancel', id),
+    sendNow: (id: string) => ipcRenderer.invoke('schedule:sendNow', id),
+    onSent: (handler) => {
+      const listener = (_event: unknown, item: ScheduledSend, result: { threadId: string } | { error: string }): void => handler(item, result)
+      ipcRenderer.on('schedule:sent', listener)
+      return () => ipcRenderer.removeListener('schedule:sent', listener)
+    },
+  },
+  calendar: {
+    events: (from: number, to: number) => ipcRenderer.invoke('calendar:events', from, to),
   },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),

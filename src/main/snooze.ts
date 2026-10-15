@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron'
+import { shouldRemind } from '@shared/schedule'
 import type { Snooze } from '@shared/types'
 import type { Gmail } from './gmail'
 import type { Store } from './store'
@@ -13,6 +14,7 @@ export class Snoozes {
     private readonly store: Store,
     private readonly gmail: Gmail,
     private readonly window: () => BrowserWindow | null,
+    private readonly me: () => string = () => '',
   ) {}
 
   start(): void {
@@ -49,6 +51,19 @@ export class Snoozes {
     return this.list()
   }
 
+  private async stillNoReply(snooze: Snooze): Promise<boolean> {
+    const thread = await this.gmail.request<{ messages?: { internalDate: string; payload?: { headers?: { name: string; value: string }[] } }[] }>(
+      `threads/${snooze.threadId}`,
+      { query: { format: 'metadata', metadataHeaders: ['From'] } },
+    )
+    const messages = (thread.messages ?? []).map((message) => {
+      const from = message.payload?.headers?.find((header) => header.name.toLowerCase() === 'from')?.value ?? ''
+      const email = /<([^>]+)>/.exec(from)?.[1] ?? from
+      return { from: { email: email.trim() }, date: Number(message.internalDate) }
+    })
+    return shouldRemind(snooze.setAt ?? 0, messages, this.me())
+  }
+
   private async wakeDue(): Promise<void> {
     if (this.waking) return
     this.waking = true
@@ -56,6 +71,11 @@ export class Snoozes {
       const now = Date.now()
       for (const snooze of this.store.snoozes.filter((entry) => entry.until <= now)) {
         try {
+          if (snooze.ifNoReply && snooze.setAt && !(await this.stillNoReply(snooze))) {
+            // Someone replied: the reminder is no longer needed.
+            this.store.setSnoozes(this.store.snoozes.filter((entry) => entry.threadId !== snooze.threadId))
+            continue
+          }
           await this.gmail.request(`threads/${snooze.threadId}/modify`, {
             method: 'POST',
             body: { addLabelIds: ['INBOX', 'UNREAD'] },

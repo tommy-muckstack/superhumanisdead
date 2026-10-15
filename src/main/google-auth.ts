@@ -5,7 +5,7 @@ import type { Store, Tokens } from './store'
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const SCOPES = ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/userinfo.email'].join(' ')
+const SCOPES = ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/calendar.readonly'].join(' ')
 
 const SUCCESS_PAGE = `<!doctype html><meta charset="utf-8"><title>DuperHuman</title>
 <body style="font-family:-apple-system,Helvetica,sans-serif;background:#141210;color:#f3ede4;display:grid;place-items:center;height:100vh;margin:0">
