@@ -7,3 +7,4 @@ dist
 .env.*
 web/.env
 tools/opens.json
+.vercel

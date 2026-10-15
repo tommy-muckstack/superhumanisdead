@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm ci --ignore-scripts",
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "out/web",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/superhumanisdead", "destination": "/index.html" },
+    { "source": "/superhumanisdead/login", "destination": "/login/index.html" },
+    { "source": "/superhumanisdead/:path*", "destination": "/:path*" }
+  ]
+}

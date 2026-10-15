@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   root: __dirname,
   base: '/superhumanisdead/',
+  // The shared Vercel env uses NEXT_PUBLIC_FIREBASE_*; expose those to the client alongside VITE_*
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_FIREBASE_'],
   build: {
     outDir: resolve(__dirname, '../out/web'),
     emptyOutDir: true,
