@@ -42,14 +42,18 @@
 <header class="sh-hero">
   <svg class="sh-scene" viewBox="0 0 1440 1070" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
     <defs>
-      <linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a74c4"/><stop offset=".35" stop-color="#7694dc"/><stop offset=".62" stop-color="#7f88cf"/><stop offset=".85" stop-color="#6f5f9e"/><stop offset="1" stop-color="#4b3868"/></linearGradient>
+      <linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5d7ccf"/><stop offset=".3" stop-color="#7b9ae0"/><stop offset=".55" stop-color="#8c9fdc"/><stop offset=".8" stop-color="#7a74b4"/><stop offset="1" stop-color="#5a4a82"/></linearGradient>
       <filter id="bl"><feGaussianBlur stdDeviation="22"/></filter>
+      <linearGradient id="skin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1b1220"/><stop offset=".45" stop-color="#2a1b27"/><stop offset=".72" stop-color="#6b4650"/><stop offset=".9" stop-color="#b57d6c"/><stop offset="1" stop-color="#d09a80"/></linearGradient>
+      <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#150d19"/><stop offset="1" stop-color="#34222a"/></linearGradient>
+      <radialGradient id="rim" cx=".9" cy=".5" r=".5"><stop offset="0" stop-color="#f1c4a0" stop-opacity=".55"/><stop offset="1" stop-color="#f1c4a0" stop-opacity="0"/></radialGradient>
       <linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a2442"/><stop offset="1" stop-color="#5e1634"/></linearGradient>
     </defs>
     <rect width="1440" height="900" fill="url(#sk)"/>
-    <g filter="url(#bl)" opacity=".7"><ellipse cx="170" cy="260" rx="260" ry="26" fill="#b6b2e6"/><ellipse cx="300" cy="360" rx="330" ry="30" fill="#8e73c0"/><ellipse cx="1180" cy="560" rx="360" ry="30" fill="#a98fd6"/><ellipse cx="1260" cy="470" rx="240" ry="20" fill="#d5a4cf"/><ellipse cx="330" cy="620" rx="380" ry="38" fill="#7a70bb"/><ellipse cx="760" cy="150" rx="420" ry="16" fill="#8aa7e8"/></g>
+    <g filter="url(#bl)" opacity=".55"><ellipse cx="140" cy="200" rx="280" ry="34" fill="#dfe6fa"/><ellipse cx="420" cy="300" rx="300" ry="22" fill="#c9d4f4"/><ellipse cx="1100" cy="330" rx="300" ry="20" fill="#cdd6f2"/></g>
+    <g filter="url(#bl)" opacity=".6"><ellipse cx="170" cy="260" rx="260" ry="26" fill="#b6b2e6"/><ellipse cx="300" cy="360" rx="330" ry="30" fill="#8e73c0"/><ellipse cx="1180" cy="560" rx="360" ry="30" fill="#a98fd6"/><ellipse cx="1260" cy="470" rx="240" ry="20" fill="#d5a4cf"/><ellipse cx="330" cy="620" rx="380" ry="38" fill="#7a70bb"/><ellipse cx="760" cy="150" rx="420" ry="16" fill="#8aa7e8"/></g>
     <rect y="900" width="1440" height="170" fill="#fff"/>
-    <g fill="#1d1020" transform="translate(0,140)"><path d="M590 540c-30-10-45-60-40-110 8-80 70-120 130-110 70 8 108 60 104 130-2 30 14 40 28 56 8 8 6 18-6 24l-14 6c10 12 16 22 2 34-8 6-14 6-16 14-4 14-14 24-30 34-6 14-8 36-24 52-70 20-130-32-134-130z"/><path d="M640 640h130v160H640z"/></g>
+    <g transform="translate(-60,100) scale(1.12)"><path fill="url(#skin)" d="M590 540c-30-10-45-60-40-110 8-80 70-120 130-110 70 8 108 60 104 130-2 30 14 40 28 56 8 8 6 18-6 24l-14 6c10 12 16 22 2 34-8 6-14 6-16 14-4 14-14 24-30 34-6 14-8 36-24 52-70 20-130-32-134-130z"/><path fill="#2a1b27" d="M640 640h130v160H640z"/><path fill="url(#hair)" d="M545 470c-8-90 50-150 130-150 66 4 96 40 100 90-40-30-90-40-130-20-36 18-70 58-90 90-6 8-8 4-10-10z"/><path fill="url(#hair)" d="M548 440c-14 70-4 150 40 210l60 30c-50-60-84-130-70-250z"/></g>
     <path d="M440 1070c8-110 70-170 190-196 50-10 130-10 190 6 96 24 150 90 160 190z" fill="url(#sh)"/>
     <g stroke="#c77a2b" stroke-width="3" stroke-linecap="round" fill="none"><path d="M1230 900c-6-60 10-110 26-150"/><path d="M1290 900c4-70 14-130 34-190"/><path d="M1350 900c-2-50 8-90 14-130"/><path d="M1410 900c-8-40-6-70 6-110"/><path d="M1180 900c-14-40-14-70-8-100"/></g>
     <g stroke="#a86a2e" stroke-width="3" stroke-linecap="round" fill="none"><path d="M90 900c14-40 32-70 60-100"/><path d="M30 900c20-30 44-50 70-66"/></g>
