@@ -2,21 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Log in · SuperhumanIsDead</title>
-<link rel="stylesheet" href="/superhumanisdead/superhuman.css" /><link rel="stylesheet" href="../site.css" />
+<title>Log in · SuperhumanIsDead Mail</title>
+<link rel="stylesheet" href="/superhumanisdead/superhuman.css" /><link rel="stylesheet" href="../site.css" /><link rel="stylesheet" href="./login.css" />
 </head>
 <body class="auth">
-<form id="form" novalidate>
-  <a class="logo" href="../">Superhuman<s>IsDead</s></a>
-  <h1 id="title">Log in</h1>
-  <button type="button" class="btn ghost" id="google">Continue with Google</button>
-  <div class="or">or</div>
-  <input id="email" type="email" placeholder="Email" autocomplete="email" required />
-  <input id="password" type="password" placeholder="Password" autocomplete="current-password" required minlength="6" />
-  <button class="btn" type="submit" id="submit">Log in</button>
-  <div class="msg" id="msg" role="status"></div>
-  <div class="switch"><span id="switchText">New here?</span> <button type="button" id="switch">Create an account</button> · <button type="button" id="reset">Forgot password</button></div>
-</form>
+<svg class="scene" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d6a9c"/><stop offset=".45" stop-color="#b9829a"/><stop offset=".75" stop-color="#e9a98b"/><stop offset="1" stop-color="#f3c58f"/></linearGradient>
+    <linearGradient id="peak" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e58d63"/><stop offset=".55" stop-color="#b8603f"/><stop offset="1" stop-color="#6b3a36"/></linearGradient>
+    <linearGradient id="ridge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f6a8c"/><stop offset="1" stop-color="#3d3a5d"/></linearGradient>
+    <linearGradient id="forest" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26382f"/><stop offset="1" stop-color="#0d1a14"/></linearGradient>
+    <radialGradient id="cloud"><stop offset="0" stop-color="#ffc9a4" stop-opacity=".95"/><stop offset="1" stop-color="#ffc9a4" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+  <rect width="1440" height="900" fill="url(#sky)"/>
+  <g filter="url(#soft)"><ellipse cx="1030" cy="90" rx="320" ry="70" fill="url(#cloud)"/><ellipse cx="150" cy="120" rx="240" ry="80" fill="#e9a3a8" opacity=".8"/><ellipse cx="520" cy="60" rx="200" ry="40" fill="#f4b3a0" opacity=".7"/><ellipse cx="1300" cy="330" rx="240" ry="50" fill="#a58bb0" opacity=".7"/></g>
+  <path d="M880 470 L1010 380 L1130 430 L1260 350 L1440 430 L1440 640 L880 640Z" fill="url(#ridge)" opacity=".85"/>
+  <path d="M0 480 L120 420 L230 470 L330 400 L420 520 L420 640 L0 640Z" fill="url(#ridge)" opacity=".9"/>
+  <path d="M300 640 L560 330 L640 215 L700 150 L742 66 L790 140 L840 230 L900 330 L1030 500 L1100 640Z" fill="url(#peak)"/>
+  <path d="M742 66 L790 140 L840 230 L900 330 L1030 500 L850 400 L790 300 L760 190Z" fill="#7a3d38" opacity=".55"/>
+  <path d="M700 150 L742 66 L760 190 L720 260 L650 330 L640 215Z" fill="#f2a478" opacity=".6"/>
+  <path d="M0 640 C 200 590 360 620 520 600 C 760 570 980 640 1440 590 L1440 900 L0 900Z" fill="url(#forest)"/>
+  <g fill="#0f1d17"><path d="M60 470 l30 -110 l30 110 l-14 0 l24 70 l-80 0 l24 -70z"/><path d="M130 520 l24 -90 l24 90 l-10 0 l18 60 l-64 0 l18 -60z"/><path d="M1280 600 l30 -120 l30 120 l-14 0 l26 80 l-84 0 l26 -80z"/><path d="M1350 640 l24 -100 l24 100 l-10 0 l20 70 l-68 0 l20 -70z"/></g>
+  <path d="M640 900 C 690 820 780 760 700 700 C 650 660 760 650 800 640" fill="none" stroke="#c99a76" stroke-width="10" stroke-linecap="round" opacity=".7"/>
+</svg>
+<main class="hero-login">
+  <a class="mark" href="../"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M2 4.5l6 4.5 6-4.5"/></svg><b>SUPERHUMAN<s>IsDead</s></b> <span>Mail</span></a>
+  <h1>The most productive email app ever made.</h1>
+  <button class="start" id="start" type="button">Get Started Now</button>
+  <p class="note">Built to run in any browser or on your desktop. <a href="../">Back to home</a></p>
+  <form id="form" novalidate hidden>
+    <h2 id="title">Log in</h2>
+    <button type="button" class="btn ghost" id="google">Continue with Google</button>
+    <div class="or">or</div>
+    <input id="email" type="email" placeholder="Email" autocomplete="email" required />
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required minlength="6" />
+    <button class="btn" type="submit" id="submit">Log in</button>
+    <div class="msg" id="msg" role="status"></div>
+    <div class="switch"><span id="switchText">New here?</span> <button type="button" id="switch">Create an account</button> · <button type="button" id="reset">Forgot password</button></div>
+  </form>
+</main>
 <script type="module" src="./login.ts"></script>
 </body>
 </html>

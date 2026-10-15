@@ -37,3 +37,5 @@ form.onsubmit = async (event) => {
 }
 onAuthStateChanged(auth, (user) => { if (user) { say(`Signed in as ${user.email}`, true); location.href = next } })
 render()
+$('start').onclick = () => { form.hidden = false; $('start').hidden = true; $<HTMLInputElement>('email').focus() }
+if (new URLSearchParams(location.search).get('mode')) { form.hidden = false; $('start').hidden = true }
