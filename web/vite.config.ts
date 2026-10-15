@@ -10,6 +10,6 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, '../out/web'),
     emptyOutDir: true,
-    rollupOptions: { input: { home: resolve(__dirname, 'index.html'), login: resolve(__dirname, 'login/index.html') } },
+    rollupOptions: { input: { home: resolve(__dirname, 'index.html'), login: resolve(__dirname, 'login/index.html'), pricing: resolve(__dirname, 'pricing/index.html') } },
   },
 })
