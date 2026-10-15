@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Log in · SuperhumanIsDead</title>
+<link rel="stylesheet" href="/superhumanisdead/superhuman.css" /><link rel="stylesheet" href="../site.css" />
+</head>
+<body class="auth">
+<form id="form" novalidate>
+  <a class="logo" href="../">Superhuman<s>IsDead</s></a>
+  <h1 id="title">Log in</h1>
+  <button type="button" class="btn ghost" id="google">Continue with Google</button>
+  <div class="or">or</div>
+  <input id="email" type="email" placeholder="Email" autocomplete="email" required />
+  <input id="password" type="password" placeholder="Password" autocomplete="current-password" required minlength="6" />
+  <button class="btn" type="submit" id="submit">Log in</button>
+  <div class="msg" id="msg" role="status"></div>
+  <div class="switch"><span id="switchText">New here?</span> <button type="button" id="switch">Create an account</button> · <button type="button" id="reset">Forgot password</button></div>
+</form>
+<script type="module" src="./login.ts"></script>
+</body>
+</html>

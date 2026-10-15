@@ -109,3 +109,16 @@ holds every token in one place so the match is a matter of editing values.
 ## License
 
 MIT
+
+## Website (yourappisdead.com/superhumanisdead)
+
+`web/` holds the single marketing page and `/login` (Firebase project `yourappisdead`,
+email/password + Google). Copy `web/.env.example` to `web/.env` with the web app config, then:
+
+```
+npm run dev:web     # local preview
+npm run build:web   # static files in out/web, served under /superhumanisdead/
+```
+
+Design tokens and the font (Inter, OFL, closest open match to Superhuman's sans) come from
+the shared IsDead design system; refresh with `npm run sync:design`.

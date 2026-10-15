@@ -14,7 +14,10 @@
     "preview": "electron-vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dist:mac": "electron-vite build && electron-builder --mac"
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts",
+    "sync:design": "cp /workspace/isdead-design/css/superhuman.css /workspace/isdead-design/fonts/superhuman/* src/renderer/src/isdead/ && sed -i.bak s#../fonts/superhuman/#./# src/renderer/src/isdead/superhuman.css && rm -f src/renderer/src/isdead/*.bak && cp src/renderer/src/isdead/* web/public/"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -29,6 +32,7 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
+    "firebase": "^13.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }
