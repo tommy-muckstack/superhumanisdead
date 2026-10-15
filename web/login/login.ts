@@ -8,7 +8,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const form = $<HTMLFormElement>('form')
 const msg = $('msg')
 let signup = new URLSearchParams(location.search).get('mode') === 'signup'
-const next = new URLSearchParams(location.search).get('next') ?? '../'
+const rawNext = new URLSearchParams(location.search).get('next') ?? ''
+const next = /^\/(?!\/)/.test(rawNext) ? rawNext : '/superhumanisdead/'
 
 function render() {
   $('title').textContent = signup ? 'Create your account' : 'Log in'
@@ -35,7 +36,7 @@ form.onsubmit = async (event) => {
     else await signInWithEmailAndPassword(auth, email, password)
   } catch (e) { say(authErrorMessage(e)) }
 }
-onAuthStateChanged(auth, (user) => { if (user) { say(`Signed in as ${user.email}`, true); location.href = next } })
+onAuthStateChanged(auth, (user) => { if (user) { document.cookie = 'sh_session=1; path=/; max-age=2592000; samesite=lax'; say(`Signed in as ${user.email}`, true); location.href = next } })
 render()
 $('start').onclick = () => { form.hidden = false; $('start').hidden = true; $<HTMLInputElement>('email').focus() }
 if (new URLSearchParams(location.search).get('mode')) { form.hidden = false; $('start').hidden = true }

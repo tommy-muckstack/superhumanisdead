@@ -5,6 +5,8 @@
   "cleanUrls": true,
   "rewrites": [
     { "source": "/superhumanisdead", "destination": "/" },
+    { "source": "/superhumanisdead/signup", "destination": "/login/?mode=signup" },
+    { "source": "/superhumanisdead/app", "destination": "/" },
     { "source": "/superhumanisdead/login", "destination": "/login" },
     { "source": "/superhumanisdead/:path*", "destination": "/:path*" }
   ]

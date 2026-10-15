@@ -23,5 +23,6 @@
 const m=document.getElementById('m'),a=document.getElementById('a');function set(an){a.classList.toggle('on',an);m.classList.toggle('on',!an);document.querySelectorAll('.price[data-a]').forEach(p=>{const u=p.querySelector('u');p.firstChild.textContent='$'+(an?p.dataset.a:p.dataset.m)+' '});document.querySelectorAll('.per').forEach(e=>{if(e.textContent.trim())e.textContent='per member / month, billed '+(an?'annually':'monthly')})}
 m.onclick=()=>set(false);a.onclick=()=>set(true);
 </script>
+<script type="module" src="../session.ts"></script>
 </body>
 </html>

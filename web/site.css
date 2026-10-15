@@ -104,3 +104,13 @@ em { font-style: normal; color: #714cb6; }
 .auth .msg.ok { color: var(--ids-color-success); }
 .auth .switch { font-size: 13px; color: var(--ids-color-text-muted); text-align: center; }
 .auth .switch button { background: none; border: 0; color: var(--ids-color-primary); cursor: pointer; font: inherit; }
+
+/* signed-in account menu (web/session.ts) */
+.sh-acct { position: fixed; top: 14px; right: 16px; z-index: 1000; font-family: var(--ids-font-sans); }
+.sh-avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); background: #fff; color: #2a1730; display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 0; }
+.sh-menu { position: absolute; right: 0; top: 42px; min-width: 220px; background: #fff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 12px 36px rgba(20,20,20,.22); padding: 8px; }
+.sh-menu[hidden] { display: none; }
+.sh-menu-email { padding: 8px 10px; font-size: 13px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-menu-out { width: 100%; text-align: left; padding: 9px 10px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; }
+.sh-menu-out:hover { background: #f3f0f7; }
+body.sh-authed .sh-signin { display: none !important; }
