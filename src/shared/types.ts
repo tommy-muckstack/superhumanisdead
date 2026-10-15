@@ -1,4 +1,8 @@
-export type Split = 'important' | 'other' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'done'
+export type Split = 'important' | 'other' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'done' | 'spam' | 'trash' | 'all'
+
+import type { ScheduledSend } from './schedule'
+import type { CalEvent } from './calendar'
+export type { ScheduledSend, CalEvent }
 
 export interface Address {
   name: string
@@ -142,6 +146,17 @@ export interface DuperApi {
     complete: (request: AiRequest) => Promise<string>
     stream: (request: AiRequest, onChunk: (text: string) => void) => Promise<string>
     triage: (threads: ThreadSummary[], me: string) => Promise<TriageResult[]>
+  }
+  schedule: {
+    list: () => Promise<ScheduledSend[]>
+    add: (item: ScheduledSend) => Promise<ScheduledSend[]>
+    /** Cancel before it goes out. Returns the cancelled item (to restore the draft), or null if already sent. */
+    cancel: (id: string) => Promise<ScheduledSend | null>
+    sendNow: (id: string) => Promise<ScheduledSend[]>
+    onSent: (handler: (item: ScheduledSend, result: { threadId: string } | { error: string }) => void) => () => void
+  }
+  calendar: {
+    events: (from: number, to: number) => Promise<CalEvent[]>
   }
   shell: {
     openExternal: (url: string) => Promise<void>

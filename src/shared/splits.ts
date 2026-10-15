@@ -10,6 +10,9 @@ export const SPLITS: { id: Split; label: string; hint: string }[] = [
   { id: 'drafts', label: 'Drafts', hint: '' },
   { id: 'sent', label: 'Sent', hint: '' },
   { id: 'done', label: 'Done', hint: 'Archived' },
+  { id: 'spam', label: 'Spam', hint: '' },
+  { id: 'trash', label: 'Trash', hint: '' },
+  { id: 'all', label: 'All Mail', hint: '' },
 ]
 
 export function isOther(thread: ThreadSummary): boolean {
@@ -35,6 +38,12 @@ export function queryForSplit(split: Split): { q?: string; labelIds?: string[] }
       return { labelIds: ['DRAFT'] }
     case 'done':
       return { q: '-in:inbox -in:sent -in:drafts -in:spam -in:trash' }
+    case 'spam':
+      return { labelIds: ['SPAM'] }
+    case 'trash':
+      return { labelIds: ['TRASH'] }
+    case 'all':
+      return {}
     case 'snoozed':
       return {}
   }
