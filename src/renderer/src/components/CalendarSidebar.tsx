@@ -5,6 +5,7 @@ import { demoEvents } from '../lib/demo-calendar'
 interface Props {
   day: number
   demo: boolean
+  version?: number
   onClose: () => void
   onShareAvailability: (text: string) => void
 }
@@ -19,7 +20,7 @@ export function startOfDay(ms: number): number {
 }
 
 /** Day view beside the mail (Superhuman's "0"). Read-only Google Calendar, or demo data. */
-export function CalendarSidebar({ day, demo, onClose, onShareAvailability }: Props) {
+export function CalendarSidebar({ day, demo, version, onClose, onShareAvailability }: Props) {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [error, setError] = useState('')
   const [now, setNow] = useState(Date.now())
@@ -53,7 +54,7 @@ export function CalendarSidebar({ day, demo, onClose, onShareAvailability }: Pro
     return () => {
       cancelled = true
     }
-  }, [day, demo])
+  }, [day, demo, version])
 
   const placed = useMemo(() => layoutDay(events, day), [events, day])
   const allDay = events.filter((event) => event.allDay)

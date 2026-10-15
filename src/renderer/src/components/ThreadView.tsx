@@ -14,6 +14,13 @@ interface Props {
   onInstantReply?: (text: string) => void
   /** Bumped by Shift+O to expand every message. */
   expandAll?: number
+  /** Message under the N/P cursor (-1 = none). */
+  focusedIndex?: number
+  /** Bumped by O to expand the focused message. */
+  expandFocused?: number
+  onSaveAttachment?: (message: FullMessage, attachment: FullMessage['body']['attachments'][number]) => void
+  /** Read-status summary for mail you sent, when tracking is on. */
+  readStatus?: string | null
 }
 
 function frameStyle(): string {
@@ -63,11 +70,11 @@ function HtmlBody({ html }: { html: string }) {
   return <iframe ref={ref} sandbox="allow-same-origin" srcDoc={doc} style={{ height }} title="message" />
 }
 
-function Message({ message, expanded, onToggle, me }: { message: FullMessage; expanded: boolean; onToggle: () => void; me: string }) {
+function Message({ message, expanded, focused, onToggle, me, onSaveAttachment }: { message: FullMessage; expanded: boolean; focused: boolean; onToggle: () => void; me: string; onSaveAttachment?: Props['onSaveAttachment'] }) {
   const isMe = message.from.email === me
   const toLabel = message.to.map((address) => (address.email === me ? 'me' : address.name)).join(', ')
   return (
-    <div className={`message${expanded ? '' : ' collapsed'}`} onClick={expanded ? undefined : onToggle}>
+    <div className={`message${expanded ? '' : ' collapsed'}${focused ? ' focused' : ''}`} data-message={message.id} onClick={expanded ? undefined : onToggle}>
       <div className="message-head">
         <span className="avatar" style={{ background: avatarColor(message.from.email) }}>{initials(message.from)}</span>
         <div>
@@ -85,9 +92,9 @@ function Message({ message, expanded, onToggle, me }: { message: FullMessage; ex
           {message.body.attachments.length > 0 && (
             <div className="attachments">
               {message.body.attachments.map((attachment) => (
-                <span className="attachment" key={attachment.attachmentId}>
-                  {attachment.filename} · {Math.max(1, Math.round(attachment.size / 1024))} KB
-                </span>
+                <button className="attachment" key={attachment.attachmentId} onClick={() => onSaveAttachment?.(message, attachment)} title="Save attachment">
+                  📎 {attachment.filename} · {Math.max(1, Math.round(attachment.size / 1024))} KB
+                </button>
               ))}
             </div>
           )}
@@ -99,7 +106,7 @@ function Message({ message, expanded, onToggle, me }: { message: FullMessage; ex
   )
 }
 
-export function ThreadView({ thread, loading, me, summary, onDismissSummary, instantReplies, onInstantReply, expandAll }: Props) {
+export function ThreadView({ thread, loading, me, summary, onDismissSummary, instantReplies, onInstantReply, expandAll, focusedIndex = -1, expandFocused, onSaveAttachment, readStatus }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -113,6 +120,13 @@ export function ThreadView({ thread, loading, me, summary, onDismissSummary, ins
     setExpanded(open)
     scrollRef.current?.scrollTo({ top: 0 })
   }, [thread?.id])
+
+  useEffect(() => {
+    const message = thread?.messages[focusedIndex]
+    if (!message) return
+    setExpanded((previous) => new Set(previous).add(message.id))
+    scrollRef.current?.querySelector(`[data-message="${message.id}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex, expandFocused])
 
   useEffect(() => {
     if (expandAll && thread) setExpanded(new Set(thread.messages.map((message) => message.id)))
@@ -139,6 +153,7 @@ export function ThreadView({ thread, loading, me, summary, onDismissSummary, ins
     <div className="pane-scroll" ref={scrollRef}>
       <div className="thread">
         <h1>{thread.subject}</h1>
+        {readStatus && <div className="read-status" title="From your pixel host (Settings → Read statuses)">{readStatus}</div>}
         <div className="labels">
           {thread.starred && <span className="label">★ Starred</span>}
           {labels.map((label) => (
@@ -159,6 +174,8 @@ export function ThreadView({ thread, loading, me, summary, onDismissSummary, ins
             key={message.id}
             message={message}
             me={me}
+            focused={thread.messages[focusedIndex]?.id === message.id}
+            onSaveAttachment={onSaveAttachment}
             expanded={expanded.has(message.id)}
             onToggle={() => setExpanded((previous) => new Set(previous).add(message.id))}
           />

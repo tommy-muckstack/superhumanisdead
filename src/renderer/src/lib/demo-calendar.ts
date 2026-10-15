@@ -1,7 +1,20 @@
-import type { CalEvent } from '@shared/calendar'
+import type { CalEvent, NewEvent } from '@shared/calendar'
+
+const extras: CalEvent[] = []
+
+export function addDemoEvent(event: NewEvent): CalEvent {
+  const created: CalEvent = { id: `x-${extras.length}`, title: event.title, start: event.start, end: event.end, allDay: event.allDay, attendees: event.attendees.map((email) => ({ email })), meetLink: event.meet ? 'https://meet.google.com/demo' : undefined }
+  extras.push(created)
+  return created
+}
 
 /** Calendar for the demo inbox: a believable day relative to whatever day is shown. */
 export function demoEvents(dayStart: number): CalEvent[] {
+  const added = extras.filter((event) => event.start >= dayStart && event.start < dayStart + 86_400_000)
+  return [...baseEvents(dayStart), ...added]
+}
+
+function baseEvents(dayStart: number): CalEvent[] {
   const h = (hours: number) => dayStart + hours * 3_600_000
   const weekday = new Date(dayStart).getDay()
   if (weekday === 0 || weekday === 6) return [{ id: 'd-run', title: 'Long run', start: h(8), end: h(9.5), allDay: false }]

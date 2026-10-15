@@ -1,16 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BINDINGS, KeySequencer, type Command } from '@shared/keys'
+import { BINDINGS, KeySequencer, composeCommand, type Command } from '@shared/keys'
+import { extractLinks, printableThread, type LinkItem } from '@shared/links'
+import { moveChange, removeAllLabels, removeCurrentLabel, toggleLabelChange, userLabels, MUTED_LABEL } from '@shared/labels'
+import { parseUnsubscribe, type Unsubscribe } from '@shared/unsubscribe'
+import { newToken } from '@shared/read-status'
+import type { NewEvent } from '@shared/calendar'
 import { messageText } from '@shared/gmail-parse'
 import { formatAddress, quoteForReply } from '@shared/mime'
 import { SPLITS } from '@shared/splits'
+import { htmlToText } from '@shared/gmail-parse'
 import { draftToMail } from '@shared/compose'
 import { parseInstantReplies, parseWritten, type RewriteStyle } from '@shared/ai-prompts'
 import type { Snippet } from '@shared/snippets'
-import type { Account, ScheduledSend, Settings, Snooze, Split, Thread, ThreadSummary } from '@shared/types'
+import type { Account, Label, OutgoingMail, ScheduledSend, Settings, Snooze, Split, Thread, ThreadSummary } from '@shared/types'
 import { Composer, type Draft, type SendMode } from './components/Composer'
 import { CommandPalette, Shortcuts, SnippetManager, TimePicker, Toasts, type PaletteItem, type Toast } from './components/Overlays'
 import { AskAi } from './components/AskAi'
 import { CalendarSidebar, startOfDay } from './components/CalendarSidebar'
+import { CalendarWeek } from './components/Calendar'
+import { EventForm } from './components/Calendar'
+import { ConfirmDialog, LinksPicker, ListPicker, type PickItem } from './components/Pickers'
+import { addDemoEvent } from './lib/demo-calendar'
+import { bindThread, statusForThread, trackSend } from './lib/readstatus'
 import { bumpSnippet, loadSnippets, saveSnippets } from './lib/snippets'
 import { Setup } from './components/Setup'
 import { ThreadList } from './components/ThreadList'
@@ -19,9 +30,11 @@ import * as gmail from './lib/gmail'
 import { DEMO_EMAIL } from './lib/demo'
 import { cleanReplySubject, forwardSubject, whenLong, whenSnooze } from './lib/format'
 
-type Overlay = 'palette' | 'shortcuts' | 'snooze' | 'settings' | 'snippetManager' | null
+type Overlay = 'palette' | 'shortcuts' | 'snooze' | 'settings' | 'snippetManager' | 'folderMenu' | 'move' | 'label' | 'links' | 'unsubscribe' | 'event' | 'eventEmpty' | 'week' | null
 type Side = 'askAi' | 'calendar' | null
 
+const TYPING_OK = new Set<Command>(['palette', 'search', 'draftReply', 'print', 'openLinks', 'askAi'])
+const FOLDER_LABEL: Partial<Record<Split, string>> = { important: 'INBOX', other: 'INBOX', starred: 'STARRED', spam: 'SPAM', trash: 'TRASH' }
 const GOTO: Record<Split, Command> = { important: 'goImportant', other: 'goOther', starred: 'goStarred', snoozed: 'goSnoozed', sent: 'goSent', drafts: 'goDrafts', done: 'goDone', spam: 'goSpam', trash: 'goTrash', all: 'goAll' }
 const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -59,7 +72,7 @@ export function App() {
   const [openThread, setOpenThread] = useState<Thread | null>(null)
   const [threadLoading, setThreadLoading] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
-  const [pendingDraft, setPendingDraft] = useState<Draft['mode'] | null>(null)
+  const [pendingDraft, setPendingDraft] = useState<{ mode: Draft['mode']; popped: boolean } | null>(null)
   const [sending, setSending] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [summary, setSummary] = useState<{ text: string; loading: boolean } | null>(null)
@@ -76,6 +89,16 @@ export function App() {
   const [instant, setInstant] = useState<{ threadId: string; replies: string[] } | null>(null)
   const [expandAll, setExpandAll] = useState(0)
   const [scheduledCount, setScheduledCount] = useState(0)
+  const [labels, setLabels] = useState<Label[]>([])
+  const [viewLabel, setViewLabel] = useState<Label | null>(null)
+  const [aliases, setAliases] = useState<gmail.SendAs[]>([])
+  const [msgFocus, setMsgFocus] = useState(-1)
+  const [expandFocused, setExpandFocused] = useState(0)
+  const [calVersion, setCalVersion] = useState(0)
+  const [unsub, setUnsub] = useState<{ info: Unsubscribe; from: string } | null>(null)
+  const [linkItems, setLinkItems] = useState<LinkItem[]>([])
+  const [readText, setReadText] = useState<string | null>(null)
+  const mutedRef = useRef<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const sequencer = useMemo(() => new KeySequencer(), [])
   const toastId = useRef(0)
@@ -157,6 +180,15 @@ export function App() {
         const current = splits[target]
         const pageToken = options.more ? current?.nextPageToken : undefined
         const page = await gmail.listThreads(target, me, pageToken, options.query ?? activeSearch)
+        const muted = mutedRef.current
+        if (muted && (target === 'important' || target === 'other')) {
+          // New mail in a muted conversation re-enters the inbox; send it straight back out.
+          const returned = page.threads.filter((thread) => thread.labelIds.includes(muted))
+          if (returned.length) {
+            page.threads = page.threads.filter((thread) => !thread.labelIds.includes(muted))
+            returned.forEach((thread) => void gmail.archive(thread.id).catch(() => undefined))
+          }
+        }
         setSplits((previous) => {
           const existing = options.more ? (previous[target]?.threads ?? []) : []
           const ids = new Set(existing.map((thread) => thread.id))
@@ -201,6 +233,34 @@ export function App() {
   }, [split, me])
 
   const selectedThread = visibleThreads[selected] ?? null
+
+  useEffect(() => {
+    if (!me) return
+    gmail.listLabels(me).then(setLabels).catch(() => undefined)
+    gmail.listSendAs(me).then(setAliases).catch(() => setAliases([]))
+  }, [me])
+
+  useEffect(() => {
+    mutedRef.current = labels.find((label) => label.name === MUTED_LABEL)?.id ?? null
+  }, [labels])
+
+  useEffect(() => {
+    setMsgFocus(-1)
+  }, [openThread?.id])
+
+  useEffect(() => {
+    if (!openThread || !settings?.readStatusEnabled || !settings.readStatusHost) {
+      setReadText(null)
+      return
+    }
+    let cancelled = false
+    statusForThread(openThread.id)
+      .then((text) => !cancelled && setReadText(text))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [openThread?.id, settings?.readStatusEnabled, settings?.readStatusHost])
 
   useEffect(() => {
     if (!selectedThread || !me) {
@@ -367,14 +427,15 @@ export function App() {
   }, [targets, patchThread, fail, selectedThread, visibleThreads.length])
 
   const startDraft = useCallback(
-    (mode: Draft['mode']) => {
+    (mode: Draft['mode'], popped = false) => {
+      const put = (value: Draft) => setDraft(popped ? { ...value, popped: true } : value)
       if (mode === 'new') {
-        setDraft({ mode: 'new', to: '', cc: '', bcc: '', subject: '', body: '', quoted: '' })
+        put({ mode: 'new', to: '', cc: '', bcc: '', subject: '', body: '', quoted: '' })
         return
       }
       if (!openThread || openThread.id !== selectedThread?.id) {
         // The reading pane is still loading the newly selected thread; reply once it lands.
-        if (selectedThread) setPendingDraft(mode)
+        if (selectedThread) setPendingDraft({ mode, popped })
         return
       }
       const last = openThread.messages[openThread.messages.length - 1]
@@ -390,13 +451,13 @@ export function App() {
         bcc: '',
       }
       if (mode === 'reply') {
-        setDraft({ ...base, mode, to: replyTo.map(formatAddress).join(', '), cc: '', subject: cleanReplySubject(openThread.subject) })
+        put({ ...base, mode, to: replyTo.map(formatAddress).join(', '), cc: '', subject: cleanReplySubject(openThread.subject) })
       } else if (mode === 'replyAll') {
         const cc = others([...last.to, ...last.cc]).filter((address) => !replyTo.some((entry) => entry.email === address.email))
-        setDraft({ ...base, mode, to: replyTo.map(formatAddress).join(', '), cc: cc.map(formatAddress).join(', '), subject: cleanReplySubject(openThread.subject) })
+        put({ ...base, mode, to: replyTo.map(formatAddress).join(', '), cc: cc.map(formatAddress).join(', '), subject: cleanReplySubject(openThread.subject) })
       } else {
         const header = `---------- Forwarded message ----------\nFrom: ${formatAddress(last.from)}\nDate: ${whenLong(last.date)}\nSubject: ${openThread.subject}\nTo: ${last.to.map(formatAddress).join(', ')}\n\n`
-        setDraft({ ...base, mode, to: '', cc: '', subject: forwardSubject(openThread.subject), body: `\n\n${header}${messageText(last)}`, quoted: '', inReplyTo: null, references: null, threadId: undefined })
+        put({ ...base, mode, to: '', cc: '', subject: forwardSubject(openThread.subject), body: `\n\n${header}${messageText(last)}`, quoted: '', inReplyTo: null, references: null, threadId: undefined })
       }
     },
     [openThread, selectedThread, me],
@@ -405,7 +466,7 @@ export function App() {
   useEffect(() => {
     if (pendingDraft && openThread && openThread.id === selectedThread?.id) {
       setPendingDraft(null)
-      startDraft(pendingDraft)
+      startDraft(pendingDraft.mode, pendingDraft.popped)
     }
   }, [pendingDraft, openThread, selectedThread?.id, startDraft])
 
@@ -424,6 +485,7 @@ export function App() {
       setScheduledCount((count) => (item.sendAt - item.createdAt > 60_000 ? Math.max(0, count - 1) : count))
       if ('error' in result) toast(`Could not send "${item.mail.subject}": ${result.error}`, { error: true })
       else {
+        if (item.mail.trackToken) bindThread(item.mail.trackToken, result.threadId)
         toast(item.sendAt - item.createdAt > 60_000 ? `Sent scheduled: ${item.mail.subject}` : 'Sent')
         afterSend(result.threadId)
       }
@@ -440,9 +502,12 @@ export function App() {
       const saved = draft
       const mail = draftToMail(draft, settings?.signature ?? '')
       const now = Date.now()
+      const tracking = Boolean(settings?.readStatusEnabled && settings.readStatusHost)
+      if (tracking) mail.trackToken = newToken()
       const undoSeconds = mode === 'now' ? 0 : (settings?.undoSendSeconds ?? 10)
       const scheduled = Boolean(draft.sendAt && draft.sendAt > now)
       const item: ScheduledSend = { id: newId(), mail, createdAt: now, sendAt: scheduled ? (draft.sendAt as number) : now + undoSeconds * 1000, remindIfNoReplyAt: draft.remindAt }
+      if (tracking && mail.trackToken) trackSend(mail.trackToken, item.sendAt, draft.threadId)
       setDraft(null)
       if (mode === 'done' && draft.threadId) void markDone()
       const restore = () => setDraft(saved)
@@ -451,6 +516,7 @@ export function App() {
           const deliver = () => {
             demoTimers.current.delete(item.id)
             void gmail.send(mail, me).then((result) => {
+              if (mail.trackToken) bindThread(mail.trackToken, result.threadId)
               toast(scheduled ? `Sent scheduled: ${mail.subject}` : 'Sent')
               afterSend(result.threadId)
             })
@@ -599,9 +665,122 @@ export function App() {
     setToasts((previous) => previous.filter((entry) => entry.id !== last.id))
   }, [toasts])
 
+  const viewLabelId = viewLabel?.id ?? FOLDER_LABEL[split] ?? null
+  const mutedId = useMemo(() => labels.find((label) => label.name === MUTED_LABEL)?.id ?? null, [labels])
+
+  const changeLabels = useCallback(
+    (list: ThreadSummary[], change: { add: string[]; remove: string[] }, message: string) => {
+      if (!list.length || (!change.add.length && !change.remove.length)) return
+      const leaves = viewLabelId ? change.remove.includes(viewLabelId) : false
+      const next = (thread: ThreadSummary) => [...new Set(thread.labelIds.filter((id) => !change.remove.includes(id)).concat(change.add))]
+      for (const thread of list) {
+        if (leaves) removeFromLists(thread.id)
+        else patchThread(thread.id, { labelIds: next(thread) })
+      }
+      setChecked(new Set())
+      Promise.all(list.map((thread) => gmail.modifyThread(thread.id, change.add, change.remove)))
+        .then(() =>
+          toast(list.length > 1 ? `${message} (${list.length})` : message, {
+            undo: () => {
+              for (const thread of list) {
+                if (leaves) insertInto(split, thread)
+                else patchThread(thread.id, { labelIds: thread.labelIds })
+              }
+              Promise.all(list.map((thread) => gmail.modifyThread(thread.id, change.remove, change.add))).catch(fail)
+            },
+          }),
+        )
+        .catch((error) => {
+          for (const thread of list) {
+            if (leaves) insertInto(split, thread)
+            else patchThread(thread.id, { labelIds: thread.labelIds })
+          }
+          fail(error)
+        })
+    },
+    [viewLabelId, removeFromLists, patchThread, insertInto, split, toast, fail],
+  )
+
+  const focusedMessageIndex = openThread ? (msgFocus >= 0 ? Math.min(msgFocus, openThread.messages.length - 1) : openThread.messages.length - 1) : -1
+
+  const saveAttachment = useCallback(
+    async (messageId: string, attachment: { attachmentId: string; filename: string }) => {
+      try {
+        const data = await gmail.downloadAttachment(me, messageId, attachment.attachmentId)
+        const saved = await window.duper.files.save(attachment.filename, data)
+        if (saved) toast(`Saved ${attachment.filename}`)
+      } catch (error) {
+        fail(error)
+      }
+    },
+    [me, toast, fail],
+  )
+
+  const switchAccount = useCallback(
+    async (index: number) => {
+      const email = account.all?.[index]
+      if (!email) return toast(window.duperDemo ? 'The sample inbox has one account' : `No account ${index + 1} yet. Add one from ⌘K.`)
+      if (email === account.email) return
+      try {
+        const status = await window.duper.auth.switchTo(email)
+        setSplits({})
+        setOpenThread(null)
+        setDraft(null)
+        setSelected(0)
+        setViewLabel(null)
+        setSplit('important')
+        setLabels([])
+        setAccount(status)
+        toast(`Switched to ${email}`)
+      } catch (error) {
+        fail(error)
+      }
+    },
+    [account, toast, fail],
+  )
+
+  const unsubscribeTarget = useCallback((): { info: Unsubscribe; from: string } | null => {
+    if (!openThread) return null
+    for (let index = openThread.messages.length - 1; index >= 0; index -= 1) {
+      const message = openThread.messages[index]
+      if (!message) continue
+      const info = parseUnsubscribe(message.body.listUnsubscribe, message.body.listUnsubscribePost)
+      if (info) return { info, from: message.from.name || message.from.email }
+    }
+    return null
+  }, [openThread])
+
+  const doUnsubscribe = useCallback(async () => {
+    if (!unsub) return
+    const { info } = unsub
+    setOverlay(null)
+    try {
+      if (info.url && info.oneClick) {
+        const code = await window.duper.shell.post(info.url, 'List-Unsubscribe=One-Click')
+        if (code >= 400) throw new Error(`The sender's server answered ${code}`)
+      } else if (info.url) {
+        await window.duper.shell.openExternal(info.url)
+      } else if (info.mailto && me) {
+        // Only reached after the user confirmed the dialog that names this recipient.
+        const mail: OutgoingMail = { to: [info.mailto.to], cc: [], bcc: [], subject: info.mailto.subject || 'unsubscribe', text: info.mailto.body || 'unsubscribe' }
+        const item: ScheduledSend = { id: newId(), mail, createdAt: Date.now(), sendAt: Date.now() }
+        if (window.duperDemo) await gmail.send(mail, me)
+        else {
+          await window.duper.schedule.add(item)
+          await window.duper.schedule.sendNow(item.id)
+        }
+      }
+      toast(`Unsubscribed from ${unsub.from}`)
+      void markDone()
+    } catch (error) {
+      fail(error)
+    }
+  }, [unsub, me, toast, fail, markDone])
+
   const run = useCallback(
     (command: Command) => {
       const goto = (target: Split) => {
+        setViewLabel(null)
         setActiveSearch('')
         setSearch('')
         setSplit(target)
@@ -773,6 +952,114 @@ export function App() {
         case 'draftReply':
           void aiDraft()
           break
+        case 'nextMessage':
+        case 'prevMessage':
+          if (openThread) {
+            const base = focusedMessageIndex
+            setMsgFocus(Math.max(0, Math.min(openThread.messages.length - 1, base + (command === 'nextMessage' ? 1 : -1))))
+          }
+          break
+        case 'expandMessage':
+          if (openThread) {
+            setMsgFocus(focusedMessageIndex)
+            setExpandFocused((value) => value + 1)
+          }
+          break
+        case 'pageDown':
+        case 'pageUp': {
+          const area = (document.querySelector(openThread ? '.pane-scroll, .thread-scroll' : '.rows') as HTMLElement | null) ?? document.querySelector('.pane')
+          area?.scrollBy({ top: (command === 'pageDown' ? 1 : -1) * area.clientHeight * 0.9, behavior: 'smooth' })
+          break
+        }
+        case 'folderMenu':
+          setOverlay('folderMenu')
+          break
+        case 'move':
+          if (targets().length) setOverlay('move')
+          break
+        case 'label':
+          if (targets().length) setOverlay('label')
+          break
+        case 'removeLabel':
+        case 'removeLabelNext':
+        case 'removeLabelPrev': {
+          if (!viewLabelId) {
+            toast('Open a folder or label first. Y removes the one you are viewing.')
+            break
+          }
+          const name = viewLabel?.name ?? SPLITS.find((entry) => entry.id === split)?.label ?? 'this folder'
+          changeLabels(targets(), removeCurrentLabel(viewLabelId), `Removed from ${name}`)
+          if (command === 'removeLabelPrev') setSelected((index) => Math.max(index - 1, 0))
+          break
+        }
+        case 'removeAllLabels':
+          for (const thread of targets()) changeLabels([thread], removeAllLabels(thread.labelIds, labels), 'Removed all labels')
+          break
+        case 'mute':
+          void (async () => {
+            const list = targets()
+            if (!list.length) return
+            try {
+              const label = await gmail.mutedLabel(me, labels)
+              setLabels((previous) => (previous.some((entry) => entry.id === label.id) ? previous : [...previous, label]))
+              changeLabels(list, { add: [label.id], remove: ['INBOX'] }, 'Muted. It stays out of your inbox when new mail arrives.')
+            } catch (error) {
+              fail(error)
+            }
+          })()
+          break
+        case 'unsubscribe': {
+          const target = unsubscribeTarget()
+          if (!target) toast('No unsubscribe link in this conversation')
+          else {
+            setUnsub(target)
+            setOverlay('unsubscribe')
+          }
+          break
+        }
+        case 'openLinks':
+          if (openThread) {
+            const message = openThread.messages[focusedMessageIndex]
+            const items = message ? extractLinks(message) : []
+            if (!items.length) toast('No links or attachments in this message')
+            else {
+              setLinkItems(items)
+              setOverlay('links')
+            }
+          }
+          break
+        case 'print':
+          if (openThread) void window.duper.print(printableThread(openThread, (message) => message.body.text ?? htmlToText(message.body.html ?? '')))
+          break
+        case 'composePop':
+          startDraft('new', true)
+          break
+        case 'replyPop':
+          startDraft('reply', true)
+          break
+        case 'replyAllPop':
+          startDraft('replyAll', true)
+          break
+        case 'forwardPop':
+          startDraft('forward', true)
+          break
+        case 'popSearch':
+          if (draft) setDraft({ ...draft, popped: true })
+          searchRef.current?.focus()
+          break
+        case 'account1': case 'account2': case 'account3': case 'account4': case 'account5':
+        case 'account6': case 'account7': case 'account8': case 'account9':
+          void switchAccount(Number(command.slice(7)) - 1)
+          break
+        case 'calWeek':
+          setOverlay('week')
+          break
+        case 'createEvent':
+          setOverlay('event')
+          break
+        case 'createEmptyEvent':
+          setOverlay('eventEmpty')
+          break
         case 'help':
           setOverlay('shortcuts')
           break
@@ -781,27 +1068,45 @@ export function App() {
           break
       }
     },
-    [visibleThreads, splits, split, loadSplit, draft, summary, markDone, unsnooze, selectedThread, startDraft, toggleStar, toggleUnread, undo, summarize, aiDraft, moveWithUndo, side, toast, triage, settings],
+    [openThread, focusedMessageIndex, viewLabelId, viewLabel, labels, targets, changeLabels, unsubscribeTarget, switchAccount, me, fail, visibleThreads, splits, split, loadSplit, draft, summary, markDone, unsnooze, selectedThread, startDraft, toggleStar, toggleUnread, undo, summarize, aiDraft, moveWithUndo, side, toast, triage, settings],
   )
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (overlay) return
-      if (isTyping(event.target) && !event.metaKey) return
+      const typing = isTyping(event.target)
+      if (typing && !event.metaKey) return
+      const onButton = (event.target as HTMLElement | null)?.tagName === 'BUTTON'
+      if (onButton && (event.key === ' ' || event.key === 'Enter')) return
+      if (!typing && draft) {
+        const own = composeCommand(event)
+        if (own === 'popToggle') {
+          event.preventDefault()
+          setDraft({ ...draft, popped: !draft.popped })
+          return
+        }
+        if (own === 'focusToggle') {
+          event.preventDefault()
+          document.querySelector<HTMLElement>('.composer textarea, .composer [contenteditable]')?.focus()
+          return
+        }
+      }
       const command = sequencer.feed(event)
       if (!command) return
+      // Inside a text field only the palette-style chords run; ⌘A, ⌘Z and friends stay with the field.
+      if (typing && !TYPING_OK.has(command)) return
       event.preventDefault()
       run(command)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [overlay, sequencer, run])
+  }, [overlay, sequencer, run, draft])
 
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const seen = new Set<Command>()
     const commands: PaletteItem[] = []
     for (const binding of BINDINGS) {
-      if (binding.scope !== 'global' || seen.has(binding.command) || ['next', 'prev', 'open', 'palette', 'back'].includes(binding.command)) continue
+      if (binding.scope !== 'global' || binding.command.startsWith('account') || seen.has(binding.command) || ['next', 'prev', 'open', 'palette', 'back'].includes(binding.command)) continue
       seen.add(binding.command)
       const keys = BINDINGS.find((entry) => entry.command === binding.command && entry.keys)?.keys
       commands.push({ id: binding.command, label: binding.label, hint: binding.section, keys, run: () => run(binding.command) })
@@ -810,9 +1115,11 @@ export function App() {
       ...commands,
       { id: 'theme', label: 'Toggle dark theme', run: () => run('theme') },
       { id: 'settings', label: 'Settings', hint: account.email, run: () => setOverlay('settings') },
-      { id: 'signout', label: 'Sign out', run: () => void window.duper.auth.signOut().then(() => setAccount({ email: '', signedIn: false })) },
+      { id: 'addAccount', label: 'Add another account', run: () => void window.duper.auth.signIn().then((status) => { setSplits({}); setOpenThread(null); setSelected(0); setAccount(status) }).catch(fail) },
+      ...(account.all ?? []).filter((email) => email !== account.email).map((email) => ({ id: `switch-${email}`, label: `Switch to ${email}`, hint: 'Accounts', run: () => void switchAccount((account.all ?? []).indexOf(email)) })),
+      { id: 'signout', label: 'Sign out', run: () => void signOut() },
     ]
-  }, [run, account.email])
+  }, [run, account.email, account.all, switchAccount])
 
   useEffect(() => {
     const theme = settings?.theme ?? 'light'
@@ -830,9 +1137,13 @@ export function App() {
   }
   const signOut = async () => {
     window.duperDemo = false
-    if (!window.duperDemo && account.email !== DEMO_EMAIL) await window.duper.auth.signOut()
-    setAccount({ email: '', signedIn: false })
+    const wasDemo = account.email === DEMO_EMAIL
+    if (!wasDemo) await window.duper.auth.signOut()
+    const status = wasDemo ? { email: '', signedIn: false } : await window.duper.auth.status()
+    setAccount(status)
     setSplits({})
+    setOpenThread(null)
+    setSelected(0)
     setOverlay(null)
   }
 
@@ -879,6 +1190,10 @@ export function App() {
             summary={summary}
             onDismissSummary={() => setSummary(null)}
             expandAll={expandAll}
+            focusedIndex={focusedMessageIndex}
+            expandFocused={expandFocused}
+            readStatus={readText}
+            onSaveAttachment={(message, attachment) => void saveAttachment(message.id, attachment)}
             instantReplies={!draft && instant && instant.threadId === openThread?.id ? instant.replies : null}
             onInstantReply={(text) => {
               startDraft('reply')
@@ -903,6 +1218,9 @@ export function App() {
                 setSnippets(loadSnippets())
               }}
               onManageSnippets={() => setOverlay('snippetManager')}
+              aliases={aliases}
+              onPopToggle={() => setDraft((previous) => (previous ? { ...previous, popped: !previous.popped } : previous))}
+              onBlurToThread={() => (document.activeElement as HTMLElement | null)?.blur()}
             />
           )}
         </div>
@@ -925,6 +1243,7 @@ export function App() {
         {side === 'calendar' && (
           <CalendarSidebar
             day={calDay}
+            version={calVersion}
             demo={Boolean(window.duperDemo)}
             onClose={() => setSide(null)}
             onShareAvailability={(text) => {
@@ -949,6 +1268,109 @@ export function App() {
             setSnippets(list)
           }}
           onClose={() => setOverlay(null)}
+        />
+      )}
+      {overlay === 'folderMenu' && (
+        <ListPicker
+          title="Go to folder or label"
+          items={[
+            ...SPLITS.map((entry) => ({ id: `split:${entry.id}`, label: entry.label, hint: entry.hint || undefined })),
+            ...userLabels(labels).map((label) => ({ id: `label:${label.id}`, label: label.name, hint: 'Label' })),
+          ]}
+          onClose={() => setOverlay(null)}
+          onPick={(item) => {
+            setOverlay(null)
+            if (item.id.startsWith('split:')) return run(GOTO[item.id.slice(6) as Split])
+            const label = labels.find((entry) => `label:${entry.id}` === item.id)
+            if (!label) return
+            const query = `label:"${label.name}"`
+            setViewLabel(label)
+            setSearch(query)
+            setActiveSearch(query)
+            setSplit('all')
+            setSelected(0)
+            void loadSplit('all', { query })
+          }}
+        />
+      )}
+      {overlay === 'move' && (
+        <ListPicker
+          title="Move to"
+          items={[{ id: 'INBOX', label: 'Inbox' }, ...userLabels(labels).map((label) => ({ id: label.id, label: label.name }))]}
+          onClose={() => setOverlay(null)}
+          createLabel="Create label"
+          onCreate={(name) => {
+            setOverlay(null)
+            void gmail.createLabel(me, name).then((label) => {
+              setLabels((previous) => [...previous, label])
+              changeLabels(targets(), moveChange(label.id), `Moved to ${label.name}`)
+            }).catch(fail)
+          }}
+          onPick={(item) => {
+            setOverlay(null)
+            changeLabels(targets(), moveChange(item.id), `Moved to ${item.label}`)
+          }}
+        />
+      )}
+      {overlay === 'label' && (
+        <ListPicker
+          title="Add or remove label"
+          items={userLabels(labels).map((label) => ({ id: label.id, label: label.name, checked: targets().length > 0 && targets().every((thread) => thread.labelIds.includes(label.id)) }))}
+          onClose={() => setOverlay(null)}
+          createLabel="Create label"
+          onCreate={(name) => {
+            setOverlay(null)
+            void gmail.createLabel(me, name).then((label) => {
+              setLabels((previous) => [...previous, label])
+              changeLabels(targets(), { add: [label.id], remove: [] }, `Added ${label.name}`)
+            }).catch(fail)
+          }}
+          onPick={(item) => {
+            setOverlay(null)
+            const list = targets()
+            const change = toggleLabelChange(list.map((thread) => thread.labelIds), item.id)
+            changeLabels(list, change, change.add.length ? `Added ${item.label}` : `Removed ${item.label}`)
+          }}
+        />
+      )}
+      {overlay === 'links' && (
+        <LinksPicker
+          items={linkItems}
+          onClose={() => setOverlay(null)}
+          onOpen={(item) => {
+            setOverlay(null)
+            if (item.kind === 'link' && item.url) void window.duper.shell.openExternal(item.url)
+            else if (item.attachmentId && item.messageId) void saveAttachment(item.messageId, { attachmentId: item.attachmentId, filename: item.filename ?? 'attachment' })
+          }}
+        />
+      )}
+      {overlay === 'unsubscribe' && unsub && (
+        <ConfirmDialog
+          title={`Unsubscribe from ${unsub.from}?`}
+          body={
+            unsub.info.mailto && !unsub.info.url
+              ? `This sends a short unsubscribe email to ${unsub.info.mailto.to} from your account.`
+              : unsub.info.oneClick
+                ? 'The sender supports one-click unsubscribe. Nothing is emailed from your account.'
+                : 'This opens the sender’s unsubscribe page in your browser.'
+          }
+          confirm="Unsubscribe"
+          onConfirm={() => void doUnsubscribe()}
+          onClose={() => setOverlay(null)}
+        />
+      )}
+      {overlay === 'week' && <CalendarWeek anchor={calDay} demo={Boolean(window.duperDemo)} version={calVersion} onNavigate={setCalDay} onCreate={() => setOverlay('event')} onClose={() => setOverlay(null)} />}
+      {(overlay === 'event' || overlay === 'eventEmpty') && (
+        <EventForm
+          empty={overlay === 'eventEmpty'}
+          onClose={() => setOverlay(null)}
+          onCreate={async (event: NewEvent) => {
+            if (window.duperDemo) addDemoEvent(event)
+            else await window.duper.calendar.create(event)
+            setCalVersion((value) => value + 1)
+            setOverlay(null)
+            toast(event.attendees.length ? `Created “${event.title}” and invited ${event.attendees.length}` : `Created “${event.title}”`)
+          }}
         />
       )}
       {overlay === 'settings' && (

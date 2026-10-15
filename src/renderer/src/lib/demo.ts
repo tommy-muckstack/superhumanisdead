@@ -175,7 +175,8 @@ export const demo = {
     return label
   },
   listThreads(split: Split, search?: string): Page {
-    const query = search?.trim() ? parseSearch(search) : null
+    const normalized = search?.replace(/label:"([^"]+)"/g, (_all, name: string) => `label:${this.labels.find((label) => label.name === name)?.id ?? name}`)
+    const query = normalized?.trim() ? parseSearch(normalized) : null
     const threads = [...store.values()]
       .filter((thread) => {
         const inbox = thread.labelIds.includes('INBOX')

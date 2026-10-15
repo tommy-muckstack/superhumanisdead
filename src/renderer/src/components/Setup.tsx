@@ -87,6 +87,15 @@ export function Setup({ settings, signedIn, email, modal, onSave, onSignIn, onSi
         <label>Theme <select value={form.theme} onChange={update('theme')}><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></label>
         <label>Undo send <select value={String(form.undoSendSeconds)} onChange={(event) => setForm((previous) => ({ ...previous, undoSendSeconds: Number(event.target.value) }))}>{[0, 5, 10, 20, 30].map((n) => <option key={n} value={n}>{n}s</option>)}</select></label>
       </div>
+      <div className="disclosure">
+        <label>Read statuses (off by default)</label>
+        <p>
+          When on, every email you send carries a tiny invisible image from the server below, so you can see when it was opened. Recipients are not told, and
+          some mail apps preload images, so opens can be wrong. Only turn this on if that is acceptable for the people you write to. Run <code>tools/pixel-server.mjs</code> on a host you control.
+        </p>
+        <input value={form.readStatusHost} onChange={update('readStatusHost')} placeholder="https://pixel.example.com" />
+        <label><input type="checkbox" checked={form.readStatusEnabled && Boolean(form.readStatusHost.trim())} disabled={!form.readStatusHost.trim()} onChange={toggle('readStatusEnabled')} /> Track opens on mail I send</label>
+      </div>
       <label>Signature (optional, appended to new mail)</label>
       <input value={form.signature} onChange={update('signature')} placeholder="— Tommy" />
 

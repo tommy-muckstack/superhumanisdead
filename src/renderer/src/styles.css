@@ -297,3 +297,60 @@ kbd { font-family: var(--font); font-size: 11px; color: var(--text-3); backgroun
 .row-opts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; }
 .row-opts label { display: flex; gap: 6px; align-items: center; color: var(--text-2); font-size: 12px; }
 .row-opts select { width: auto; padding: 2px 6px; }
+
+/* --- Pickers, calendar week, event form --- */
+.list-picker .check { display: inline-block; width: 16px; color: var(--accent); font-weight: 700; }
+.list-picker .items { max-height: 50vh; overflow-y: auto; }
+.confirm { width: 440px; padding-bottom: 12px; }
+.confirm-body { padding: 8px 16px 16px; color: var(--text-2); line-height: 1.5; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 16px 0; }
+.event-form .event-fields { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 0; font-size: 13px; color: var(--text-2); }
+.event-form .event-fields input:not([type='checkbox']), .event-form .event-fields select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-input); outline: none; color: var(--text); font-size: 13px; }
+.event-form .event-fields label { display: flex; align-items: center; gap: 8px; }
+.event-form label.inline { gap: 6px; }
+.warn { padding: 8px 10px; border-radius: 6px; background: var(--accent-soft); color: var(--text); font-size: 12px; }
+.warn.error { background: rgba(200, 60, 50, 0.14); }
+
+.week { width: min(1180px, 94vw); height: 80vh; margin-top: -8vh; display: flex; flex-direction: column; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; outline: none; }
+.week .side-head { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.week .side-head .hint { margin-left: auto; font-weight: 400; color: var(--text-3); font-size: 12px; }
+.week .side-head .close { color: var(--text-3); font-size: 18px; }
+.week-head { display: grid; grid-template-columns: 46px repeat(7, 1fr); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-2); }
+.week-head .wd { padding: 8px 6px; border-left: 1px solid var(--line); }
+.week-head .wd.today { color: var(--accent); font-weight: 600; }
+.week-scroll { flex: 1; overflow-y: auto; }
+.week-grid { position: relative; }
+.week-grid .hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); height: 0; font-size: 10px; color: var(--text-3); }
+.week-grid .hour span { position: absolute; left: 6px; top: -7px; background: var(--bg-raised); padding-right: 2px; }
+.week-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+.event { position: absolute; overflow: hidden; padding: 2px 6px; border-radius: 5px; background: var(--accent-soft); border-left: 3px solid var(--accent-edge); font-size: 11px; color: var(--text); display: flex; flex-direction: column; }
+.event b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event span { color: var(--text-3); }
+.event.past { opacity: 0.55; }
+.event.all { position: static; margin-top: 4px; }
+.cal-error { padding: 8px 16px; color: var(--text-2); font-size: 12px; }
+
+/* --- Composer: formatting, attachments, pop-out --- */
+.fmt-bar { display: flex; align-items: center; gap: 2px; margin-top: 6px; flex-wrap: wrap; }
+.fmt-bar .fmt { min-width: 26px; height: 24px; padding: 0 6px; border-radius: 5px; color: var(--text-2); font-size: 12px; }
+.fmt-bar .fmt:hover { background: var(--bg-hover); color: var(--text); }
+.fmt-bold { font-weight: 800; } .fmt-italic { font-style: italic; } .fmt-underline { text-decoration: underline; } .fmt-strike { text-decoration: line-through; }
+.fmt-bar .notice { margin-left: auto; font-size: 12px; color: var(--accent); }
+.attach-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.attach-list .attachment button { margin-left: 6px; color: var(--text-3); }
+button.attachment { cursor: pointer; font: inherit; font-size: 12px; }
+button.attachment:hover { background: var(--bg-hover); color: var(--text); }
+.link-input input { width: 100%; }
+.composer.dragging { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.composer.popped { position: fixed; right: 24px; bottom: 44px; width: 560px; max-height: 80vh; overflow-y: auto; z-index: 40; border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 18px 12px; }
+.composer.popped textarea { min-height: 120px; }
+.pop-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.pop-head .close { color: var(--text-3); font-size: 16px; }
+.inline-snippets .item { display: flex; gap: 10px; padding: 6px 10px; }
+
+/* --- Reading: focused message, read status, settings disclosure --- */
+.message.focused { box-shadow: -3px 0 0 var(--accent-edge); }
+.read-status { display: inline-block; margin-bottom: 10px; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--text); font-size: 12px; }
+.disclosure { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+.disclosure p { margin: 4px 0 8px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.disclosure code { font-size: 11px; }
