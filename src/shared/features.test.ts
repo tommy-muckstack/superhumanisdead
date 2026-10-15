@@ -145,3 +145,26 @@ describe('new key bindings', () => {
     expect(composeCommand(press('I', { metaKey: true, shiftKey: true }))).toBe('instantIntro')
   })
 })
+
+import { extractLinks, printableThread } from './links'
+import { describeStatus } from './read-status'
+
+describe('links and print', () => {
+  const base = { id: 'm1', threadId: 't', from: { name: 'A', email: 'a@x' }, to: [{ name: 'me', email: 'me@x' }], cc: [], subject: 's', snippet: '', date: 0, labelIds: [], unread: false, starred: false }
+  it('extracts html anchors, text urls and attachments', () => {
+    const html = extractLinks({ ...base, body: { html: '<a href="https://a.io/x?a=1&amp;b=2">Read <b>more</b></a> <a href="javascript:alert(1)">bad</a> <a href="https://a.io/x?a=1&b=2">dup</a>', text: null, messageId: null, references: null, attachments: [{ filename: 'f.pdf', mimeType: 'application/pdf', size: 2048, attachmentId: 'at' }] } })
+    expect(html.map((i) => [i.kind, i.url ?? i.filename])).toEqual([['link', 'https://a.io/x?a=1&b=2'], ['attachment', 'f.pdf']])
+    expect(html[0]?.label).toBe('Read more')
+    const text = extractLinks({ ...base, body: { html: null, text: 'see https://b.io/p). and https://b.io/p', messageId: null, references: null, attachments: [] } })
+    expect(text.map((i) => i.url)).toEqual(['https://b.io/p'])
+  })
+  it('prints escaped content', () => {
+    const doc = printableThread({ id: 't', subject: 'Hi <b>', snippet: '', participants: [], lastDate: 0, messageCount: 1, unread: false, starred: false, labelIds: [], messages: [{ ...base, body: { html: null, text: '<script>x</script>', messageId: null, references: null, attachments: [] } }] }, (m) => m.body.text ?? '')
+    expect(doc).toContain('Hi &lt;b&gt;')
+    expect(doc).not.toContain('<script>')
+  })
+  it('describes read status', () => {
+    expect(describeStatus({ opens: 0, devices: [] })).toBe('Not opened yet')
+    expect(describeStatus({ opens: 2, last: 1_000_000 - 3 * 3_600_000, devices: [{ kind: 'mobile', at: 0 }] }, 1_000_000)).toBe('Opened 2 times · last 3h ago on mobile')
+  })
+})

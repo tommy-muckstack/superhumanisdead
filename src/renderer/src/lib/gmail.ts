@@ -1,8 +1,9 @@
 import { parseThread, summariseThread, type GmailThread } from '@shared/gmail-parse'
 import { base64Url, buildRawMessage } from '@shared/mime'
 import { queryForSplit } from '@shared/splits'
-import type { OutgoingMail, Split, Thread, ThreadSummary } from '@shared/types'
+import type { Label, OutgoingMail, Split, Thread, ThreadSummary } from '@shared/types'
 import { DEMO_EMAIL, demo } from './demo'
+import { MUTED_LABEL } from '@shared/labels'
 
 const isDemo = (me: string): boolean => me === DEMO_EMAIL
 
@@ -122,4 +123,41 @@ export async function send(mail: OutgoingMail, from: string): Promise<{ id: stri
 export async function saveDraft(mail: OutgoingMail, from: string): Promise<{ id: string }> {
   const raw = base64Url(buildRawMessage(mail, from))
   return window.duper.gmail.request('drafts', { method: 'POST', body: { message: { raw, threadId: mail.threadId } } })
+}
+
+export async function listLabels(me: string): Promise<Label[]> {
+  if (isDemo(me)) return [...demo.labels]
+  const response = await window.duper.gmail.request<{ labels?: { id: string; name: string; type: string }[] }>('labels')
+  return (response.labels ?? []).map((label) => ({ id: label.id, name: label.name, type: label.type === 'user' ? 'user' : 'system' }))
+}
+
+export async function createLabel(me: string, name: string): Promise<Label> {
+  if (isDemo(me)) return demo.addLabel(name)
+  const label = await window.duper.gmail.request<{ id: string; name: string }>('labels', {
+    method: 'POST',
+    body: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+  })
+  return { id: label.id, name: label.name, type: 'user' }
+}
+
+/** Find or create the label that marks muted conversations. */
+export async function mutedLabel(me: string, labels: Label[]): Promise<Label> {
+  return labels.find((label) => label.name === MUTED_LABEL) ?? createLabel(me, MUTED_LABEL)
+}
+
+export interface SendAs {
+  email: string
+  name: string
+  isDefault: boolean
+}
+
+export async function listSendAs(me: string): Promise<SendAs[]> {
+  if (isDemo(me)) return [{ email: me, name: 'You', isDefault: true }, { email: 'tommy@muckstack.demo', name: 'Tommy (MuckStack)', isDefault: false }]
+  const response = await window.duper.gmail.request<{ sendAs?: { sendAsEmail: string; displayName?: string; isDefault?: boolean }[] }>('settings/sendAs')
+  return (response.sendAs ?? []).map((alias) => ({ email: alias.sendAsEmail, name: alias.displayName ?? '', isDefault: Boolean(alias.isDefault) }))
+}
+
+export async function downloadAttachment(me: string, messageId: string, attachmentId: string): Promise<string> {
+  if (isDemo(me)) return btoa('Demo attachment contents')
+  return window.duper.gmail.attachment(messageId, attachmentId)
 }

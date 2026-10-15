@@ -1,5 +1,5 @@
 import { matchThread, parseSearch } from '@shared/search'
-import type { Address, FullMessage, OutgoingMail, Split, Thread, ThreadSummary } from '@shared/types'
+import type { Address, FullMessage, Label, OutgoingMail, Split, Thread, ThreadSummary } from '@shared/types'
 import type { Page } from './gmail'
 
 export const DEMO_EMAIL = 'you@duperhuman.local'
@@ -27,6 +27,8 @@ interface Seed {
   labels: string[]
   unread?: boolean
   starred?: boolean
+  unsubscribe?: string
+  attachment?: { filename: string; size: number }
   messages: { from: Address; to: Address[]; ago: number; text: string }[]
 }
 
@@ -37,8 +39,9 @@ const seeds: Seed[] = [
     labels: ['INBOX', 'CATEGORY_PERSONAL'],
     unread: true,
     messages: [
-      { from: people.ada!, to: [people.me!], ago: 0.4, text: 'Hi,\n\nCan you send me the final retention numbers before Thursday? I want to put them on slide 4 next to the cohort chart.\n\nAlso, do we want to show the pricing experiment, or hold that until we have another month of data?\n\nAda' },
+      { from: people.ada!, to: [people.me!], ago: 0.4, text: 'Hi,\n\nCan you send me the final retention numbers before Thursday? I want to put them on slide 4 next to the cohort chart.\n\nAlso, do we want to show the pricing experiment, or hold that until we have another month of data?\n\nDraft is here: https://docs.example.com/board-deck\n\nAda' },
     ],
+    attachment: { filename: 'retention-draft.pdf', size: 184_000 },
   },
   {
     id: 'd2',
@@ -86,6 +89,7 @@ const seeds: Seed[] = [
     id: 'd7',
     subject: 'The End of Software',
     labels: ['INBOX', 'CATEGORY_PROMOTIONS'],
+    unsubscribe: '<https://stratechery.example.com/unsubscribe?u=1>',
     messages: [{ from: people.substack!, to: [people.me!], ago: 20, text: 'When the marginal cost of building a CRUD app approaches zero, what is a SaaS company actually selling?\n\nThis week we look at the per-seat model...' }],
   },
   {
@@ -98,6 +102,7 @@ const seeds: Seed[] = [
     id: 'd9',
     subject: 'Config 2026 recordings are live',
     labels: ['INBOX', 'CATEGORY_PROMOTIONS'],
+    unsubscribe: '<mailto:unsubscribe@figma.example.com?subject=unsubscribe>',
     messages: [{ from: people.figma!, to: [people.me!], ago: 50, text: 'Every talk from Config, now on demand.' }],
   },
   {
@@ -123,7 +128,14 @@ function build(seed: Seed): Thread {
     labelIds: seed.labels,
     unread: Boolean(seed.unread) && index === seed.messages.length - 1,
     starred: Boolean(seed.starred),
-    body: { html: null, text: message.text, messageId: `<${seed.id}-m${index}@demo>`, references: null, attachments: [] },
+    body: {
+      html: null,
+      text: message.text,
+      messageId: `<${seed.id}-m${index}@demo>`,
+      references: null,
+      attachments: seed.attachment && index === seed.messages.length - 1 ? [{ filename: seed.attachment.filename, mimeType: 'application/pdf', size: seed.attachment.size, attachmentId: `${seed.id}-att` }] : [],
+      listUnsubscribe: seed.unsubscribe ?? null,
+    },
   }))
   const last = messages[messages.length - 1]
   const participants = messages.flatMap((message) => [message.from, ...message.to]).filter((address, index, all) => all.findIndex((entry) => entry.email === address.email) === index)
@@ -149,7 +161,19 @@ function summary(thread: Thread): ThreadSummary {
   return rest
 }
 
+export const DEMO_LABELS: Label[] = [
+  { id: 'Label_1', name: 'Investors', type: 'user' },
+  { id: 'Label_2', name: 'Hiring', type: 'user' },
+  { id: 'Label_3', name: 'Personal', type: 'user' },
+]
+
 export const demo = {
+  labels: [...DEMO_LABELS],
+  addLabel(name: string): Label {
+    const label: Label = { id: `Label_${this.labels.length + 1}`, name, type: 'user' }
+    this.labels.push(label)
+    return label
+  },
   listThreads(split: Split, search?: string): Page {
     const query = search?.trim() ? parseSearch(search) : null
     const threads = [...store.values()]

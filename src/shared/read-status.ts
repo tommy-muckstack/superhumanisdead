@@ -61,3 +61,13 @@ export function summarizeOpens(events: OpenEvent[], sentAt: number): ReadStatus 
     devices: kept.map((event) => ({ kind: deviceKind(event.userAgent), at: event.at })),
   }
 }
+
+/** Human summary for the thread header and Sent rows. */
+export function describeStatus(status: ReadStatus, now = Date.now()): string {
+  if (!status.opens) return 'Not opened yet'
+  const last = status.last ?? now
+  const minutes = Math.max(0, Math.round((now - last) / 60_000))
+  const ago = minutes < 1 ? 'just now' : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.round(minutes / 60)}h ago` : `${Math.round(minutes / 1440)}d ago`
+  const device = status.devices[status.devices.length - 1]?.kind
+  return `Opened ${status.opens} ${status.opens === 1 ? 'time' : 'times'} · last ${ago}${device && device !== 'unknown' ? ` on ${device}` : ''}`
+}
