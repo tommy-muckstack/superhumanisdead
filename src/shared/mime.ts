@@ -55,12 +55,14 @@ export function decodeBase64Url(data: string): string {
   return Buffer.from(padded, 'base64').toString('utf8')
 }
 
+function wrap76(base64: string): string {
+  return base64.replace(/.{1,76}/g, (line) => `${line}\r\n`).trimEnd()
+}
+
 export function buildRawMessage(mail: OutgoingMail, from: string): string {
-  const boundary = `duper_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
-  const headers: string[] = [
-    `From: ${from}`,
-    `To: ${mail.to.join(', ')}`,
-  ]
+  const id = () => `sid_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+  const crlf = '\r\n'
+  const headers: string[] = [`From: ${mail.from || from}`, `To: ${mail.to.join(', ')}`]
   if (mail.cc.length) headers.push(`Cc: ${mail.cc.join(', ')}`)
   if (mail.bcc.length) headers.push(`Bcc: ${mail.bcc.join(', ')}`)
   headers.push(`Subject: ${encodeHeader(mail.subject)}`)
@@ -69,29 +71,45 @@ export function buildRawMessage(mail: OutgoingMail, from: string): string {
   if (mail.inReplyTo) headers.push(`In-Reply-To: ${mail.inReplyTo}`)
   if (mail.references) headers.push(`References: ${mail.references}`)
 
-  const crlf = '\r\n'
+  const textPart = ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', wrap76(Buffer.from(mail.text, 'utf8').toString('base64'))]
+  let body: { type: string; lines: string[] }
   if (mail.html) {
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
-    return [
-      headers.join(crlf),
-      '',
-      `--${boundary}`,
-      'Content-Type: text/plain; charset="UTF-8"',
-      'Content-Transfer-Encoding: base64',
-      '',
-      Buffer.from(mail.text, 'utf8').toString('base64'),
-      `--${boundary}`,
-      'Content-Type: text/html; charset="UTF-8"',
-      'Content-Transfer-Encoding: base64',
-      '',
-      Buffer.from(mail.html, 'utf8').toString('base64'),
-      `--${boundary}--`,
-      '',
-    ].join(crlf)
+    const alt = id()
+    body = {
+      type: `multipart/alternative; boundary="${alt}"`,
+      lines: [
+        `--${alt}`, ...textPart,
+        `--${alt}`, 'Content-Type: text/html; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', wrap76(Buffer.from(mail.html, 'utf8').toString('base64')),
+        `--${alt}--`,
+      ],
+    }
+  } else {
+    body = { type: 'text/plain; charset="UTF-8"', lines: [wrap76(Buffer.from(mail.text, 'utf8').toString('base64'))] }
   }
-  headers.push('Content-Type: text/plain; charset="UTF-8"')
-  headers.push('Content-Transfer-Encoding: base64')
-  return [headers.join(crlf), '', Buffer.from(mail.text, 'utf8').toString('base64'), ''].join(crlf)
+
+  const files = mail.attachments ?? []
+  if (!files.length) {
+    if (!mail.html) headers.push('Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64')
+    else headers.push(`Content-Type: ${body.type}`)
+    return [headers.join(crlf), '', ...body.lines, ''].join(crlf)
+  }
+  const mixed = id()
+  headers.push(`Content-Type: multipart/mixed; boundary="${mixed}"`)
+  const inner = mail.html ? [`Content-Type: ${body.type}`, '', ...body.lines] : textPart
+  const parts: string[] = [`--${mixed}`, ...inner]
+  for (const file of files) {
+    const name = encodeHeader(file.filename).replace(/"/g, '')
+    parts.push(
+      `--${mixed}`,
+      `Content-Type: ${file.mimeType || 'application/octet-stream'}; name="${name}"`,
+      `Content-Disposition: attachment; filename="${name}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      wrap76(file.data),
+    )
+  }
+  parts.push(`--${mixed}--`, '')
+  return [headers.join(crlf), '', ...parts].join(crlf)
 }
 
 export function textToHtml(text: string): string {

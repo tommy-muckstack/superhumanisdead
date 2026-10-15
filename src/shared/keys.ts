@@ -23,8 +23,21 @@ export type Command =
   | 'focusTo' | 'focusCc' | 'focusBcc' | 'focusSubject' | 'focusBody'
   // misc
   | 'triage' | 'theme'
+  // reading
+  | 'nextMessage' | 'prevMessage' | 'expandMessage' | 'pageDown' | 'pageUp' | 'folderMenu' | 'openLinks' | 'print'
+  // organize
+  | 'move' | 'label' | 'removeLabel' | 'removeAllLabels' | 'removeLabelNext' | 'removeLabelPrev' | 'unsubscribe' | 'mute'
+  // accounts
+  | 'account1' | 'account2' | 'account3' | 'account4' | 'account5' | 'account6' | 'account7' | 'account8' | 'account9'
+  // pop out
+  | 'composePop' | 'replyPop' | 'replyAllPop' | 'forwardPop' | 'popSearch'
+  // calendar
+  | 'calWeek' | 'createEvent' | 'createEmptyEvent'
+  // compose extras
+  | 'popToggle' | 'focusToggle' | 'attach' | 'instantIntro' | 'focusFrom'
+  | 'bold' | 'italic' | 'underline' | 'link' | 'strike' | 'numbered' | 'bullets' | 'quote'
 
-export type Section = 'Actions' | 'Navigation' | 'Conversations' | 'Messages' | 'Compose' | 'Folders' | 'Calendar' | 'AI'
+export type Section = 'Actions' | 'Navigation' | 'Conversations' | 'Messages' | 'Compose' | 'Format' | 'Folders' | 'Calendar' | 'AI' | 'Accounts'
 
 export interface KeyEventLike {
   key: string
@@ -44,7 +57,7 @@ export interface Binding {
 }
 
 const g = (keys: string, command: Command, label: string, section: Section): Binding => ({ keys, command, label, section, scope: 'global' })
-const c = (keys: string, command: Command, label: string): Binding => ({ keys, command, label, section: 'Compose', scope: 'compose' })
+const c = (keys: string, command: Command, label: string, section: Section = 'Compose'): Binding => ({ keys, command, label, section, scope: 'compose' })
 
 export const BINDINGS: Binding[] = [
   g('meta+k', 'palette', 'Command palette', 'Actions'),
@@ -98,7 +111,45 @@ export const BINDINGS: Binding[] = [
   g('-', 'calPrev', 'Calendar: previous day', 'Calendar'),
   g('=', 'calNext', 'Calendar: next day', 'Calendar'),
   g('', 'shareAvailability', 'Share availability', 'Calendar'),
+  g('n', 'nextMessage', 'Next message', 'Navigation'),
+  g('p', 'prevMessage', 'Previous message', 'Navigation'),
+  g('ArrowLeft', 'folderMenu', 'Folder menu', 'Navigation'),
+  g('Space', 'pageDown', 'Page down', 'Navigation'),
+  g('shift+Space', 'pageUp', 'Page up', 'Navigation'),
+  g('o', 'expandMessage', 'Expand message', 'Messages'),
+  g('meta+o', 'openLinks', 'Open links and attachments', 'Messages'),
+  g('meta+p', 'print', 'Print', 'Messages'),
+  g('v', 'move', 'Move', 'Conversations'),
+  g('l', 'label', 'Add or remove label', 'Conversations'),
+  g('y', 'removeLabel', 'Remove label', 'Conversations'),
+  g('shift+y', 'removeAllLabels', 'Remove all labels', 'Conversations'),
+  g('[', 'removeLabelNext', 'Remove label, then next', 'Conversations'),
+  g(']', 'removeLabelPrev', 'Remove label, then previous', 'Conversations'),
+  g('meta+u', 'unsubscribe', 'Unsubscribe', 'Conversations'),
+  g('shift+m', 'mute', 'Mute', 'Conversations'),
+  ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => g(`ctrl+${n}`, `account${n}` as Command, `Switch to account ${n}`, 'Accounts')),
+  g('shift+c', 'composePop', 'Compose, popped out', 'Messages'),
+  g('shift+r', 'replyPop', 'Reply, popped out', 'Messages'),
+  g('shift+Enter', 'replyAllPop', 'Reply all, popped out', 'Messages'),
+  g('shift+f', 'forwardPop', 'Forward, popped out', 'Messages'),
+  g('meta+/', 'popSearch', 'Pop out draft and search', 'Actions'),
+  g('2', 'calWeek', 'Calendar: week view', 'Calendar'),
+  g('b', 'createEvent', 'Create event', 'Calendar'),
+  g('shift+b', 'createEmptyEvent', 'Create empty event', 'Calendar'),
   c('meta+Enter', 'send', 'Send'),
+  c('meta+shift+p', 'popToggle', 'Pop draft out or in'),
+  c('meta+d', 'focusToggle', 'Toggle focus between draft and thread'),
+  c('meta+shift+a', 'attach', 'Attach'),
+  c('meta+shift+i', 'instantIntro', 'Instant Intro (move to Bcc)'),
+  c('meta+shift+f', 'focusFrom', 'Edit From'),
+  c('meta+b', 'bold', 'Bold', 'Format'),
+  c('meta+i', 'italic', 'Italic', 'Format'),
+  c('meta+u', 'underline', 'Underline', 'Format'),
+  c('meta+k', 'link', 'Hyperlink (with text selected)', 'Format'),
+  c('meta+shift+x', 'strike', 'Strikethrough', 'Format'),
+  c('meta+shift+7', 'numbered', 'Numbered list', 'Format'),
+  c('meta+shift+8', 'bullets', 'Bullets', 'Format'),
+  c('meta+shift+9', 'quote', 'Quote', 'Format'),
   c('meta+shift+z', 'sendNow', 'Send instantly (skip undo)'),
   c('meta+shift+Enter', 'sendDone', 'Send and mark done'),
   c('meta+shift+l', 'sendLater', 'Send later'),
@@ -114,20 +165,21 @@ export const BINDINGS: Binding[] = [
 ]
 
 /** Shifted punctuation reported by US layouts with ⌘⇧ held. */
-const SHIFTED: Record<string, string> = { '<': ',', '>': '.', ':': ';', '"': "'", '{': '[', '}': ']', '+': '=', _: '-' }
+const SHIFTED: Record<string, string> = { '<': ',', '>': '.', ':': ';', '"': "'", '{': '[', '}': ']', '+': '=', _: '-', '&': '7', '*': '8', '(': '9', '?': '/' }
 
 export function chordOf(event: KeyEventLike): string {
   const parts: string[] = []
-  const meta = event.metaKey || event.ctrlKey
+  const meta = event.metaKey
   if (meta) parts.push('meta')
+  if (event.ctrlKey) parts.push('ctrl')
   if (event.altKey) parts.push('alt')
-  let key = event.key
+  let key = event.key === ' ' ? 'Space' : event.key
   if (key.length === 1) {
     const letter = /^[a-z]$/i.test(key)
     if (letter) {
       if (event.shiftKey) parts.push('shift')
       key = key.toLowerCase()
-    } else if (meta && event.shiftKey) {
+    } else if ((meta || event.ctrlKey) && event.shiftKey) {
       parts.push('shift')
       key = SHIFTED[key] ?? key
     }
@@ -141,7 +193,7 @@ export function chordOf(event: KeyEventLike): string {
 /** Display a chord sequence as keycaps: "meta+shift+l" -> ["⌘⇧L"], "g i" -> ["G", "I"]. */
 export function keycaps(keys: string): string[] {
   if (!keys) return []
-  const names: Record<string, string> = { meta: '⌘', shift: '⇧', alt: '⌥', Enter: '↵', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', Tab: 'Tab', Space: 'Space' }
+  const names: Record<string, string> = { meta: '⌘', ctrl: '⌃', shift: '⇧', alt: '⌥', ArrowLeft: '←', Enter: '↵', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓', Tab: 'Tab', Space: 'Space' }
   return keys.split(' ').map((chord) =>
     chord
       .split('+')
@@ -169,7 +221,9 @@ export class KeySequencer {
 
   /** Returns the matched command, or null when the chord is unbound or starts a sequence. */
   feed(event: KeyEventLike): Command | null {
-    const chord = chordOf(event)
+    const exact = chordOf(event)
+    // Off macOS, Ctrl stands in for ⌘ unless the chord is itself a Ctrl binding (Ctrl+1–9).
+    const chord = this.bindings.some((binding) => binding.keys === exact) || !exact.startsWith('ctrl+') ? exact : exact.replace(/^ctrl\+/, 'meta+')
     if (this.pending) {
       const sequence = `${this.pending} ${chord}`
       this.clearPending()
@@ -193,7 +247,7 @@ export class KeySequencer {
 
 /** Composer shortcut lookup (no sequences). */
 export function composeCommand(event: KeyEventLike): Command | null {
-  const chord = chordOf(event)
+  const chord = chordOf(event).replace(/^ctrl\+/, 'meta+')
   return BINDINGS.find((binding) => binding.scope === 'compose' && binding.keys === chord)?.command ?? null
 }
 

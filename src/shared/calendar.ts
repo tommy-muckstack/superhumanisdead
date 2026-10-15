@@ -105,3 +105,73 @@ export function formatSlots(slots: { start: number; end: number }[], locale = 'e
   const time = (ms: number) => new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
   return slots.map((slot) => `• ${new Date(slot.start).toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' })}, ${time(slot.start)} – ${time(slot.end)}`).join('\n')
 }
+
+export const DAY_MS = 86_400_000
+
+/** Monday 00:00 of the week containing `ms` (local time). */
+export function weekStart(ms: number): number {
+  const date = new Date(ms)
+  date.setHours(0, 0, 0, 0)
+  const offset = (date.getDay() + 6) % 7
+  date.setDate(date.getDate() - offset)
+  return date.getTime()
+}
+
+/** Seven day columns, each laid out like the day view. Uses calendar dates so DST days still line up. */
+export function layoutWeek(events: CalEvent[], start: number): { day: number; placed: Placed[]; allDay: CalEvent[] }[] {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(date.getDate() + index)
+    const day = date.getTime()
+    const next = new Date(date)
+    next.setDate(next.getDate() + 1)
+    const end = next.getTime()
+    const inDay = events.filter((event) => event.start < end && event.end > day)
+    return { day, placed: layoutDay(inDay.filter((event) => !event.allDay), day), allDay: inDay.filter((event) => event.allDay) }
+  })
+}
+
+export interface NewEvent {
+  title: string
+  start: number
+  end: number
+  allDay: boolean
+  attendees: string[]
+  location?: string
+  meet: boolean
+}
+
+/** Build the Google Calendar insert body (with an optional Meet link). */
+export function toGoogleEvent(event: NewEvent, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): Record<string, unknown> {
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const day = (ms: number) => {
+    const d = new Date(ms)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return {
+    summary: event.title || '(No title)',
+    location: event.location,
+    start: event.allDay ? { date: day(event.start) } : { dateTime: iso(event.start), timeZone },
+    end: event.allDay ? { date: day(event.end) } : { dateTime: iso(event.end), timeZone },
+    attendees: event.attendees.length ? event.attendees.map((email) => ({ email })) : undefined,
+    conferenceData: event.meet ? { createRequest: { requestId: `sid-${event.start}-${event.title.length}`, conferenceSolutionKey: { type: 'hangoutsMeet' } } } : undefined,
+  }
+}
+
+/**
+ * Split "Lunch with Ada tomorrow 1pm for 45m" into a title, a when-phrase and a duration.
+ * The when-phrase is parsed by the caller with parseRemind so all date grammar lives in one place.
+ */
+export function splitQuickEvent(input: string): { title: string; when: string; minutes: number } {
+  let text = input.trim()
+  let minutes = 30
+  const duration = /\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(m|min|mins|minutes|h|hr|hrs|hours)\b\s*$/i.exec(text)
+  if (duration) {
+    const value = Number(duration[1])
+    minutes = /^h/i.test(duration[2] ?? '') ? Math.round(value * 60) : Math.round(value)
+    text = text.slice(0, duration.index).trim()
+  }
+  const when = /\s+((?:today|tomorrow|tonight|next\s+\w+|this\s+\w+|on\s+\w+|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|at\s|\d{1,2}(?::\d{2})?\s*(?:am|pm))[\s\S]*)$/i.exec(text)
+  if (!when) return { title: text, when: '', minutes }
+  return { title: text.slice(0, when.index).trim(), when: (when[1] ?? '').replace(/^on\s+/i, '').trim(), minutes }
+}

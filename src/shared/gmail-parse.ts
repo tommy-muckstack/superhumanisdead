@@ -73,6 +73,8 @@ export function extractBody(payload: GmailPart | undefined): MessageBody {
     messageId: header(payload, 'Message-ID') ?? header(payload, 'Message-Id') ?? null,
     references: header(payload, 'References') ?? null,
     attachments: [],
+    listUnsubscribe: header(payload, 'List-Unsubscribe') ?? null,
+    listUnsubscribePost: header(payload, 'List-Unsubscribe-Post') ?? null,
   }
   const visit = (part: GmailPart | undefined): void => {
     if (!part) return

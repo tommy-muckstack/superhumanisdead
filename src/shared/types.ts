@@ -29,6 +29,9 @@ export interface MessageBody {
   messageId: string | null
   references: string | null
   attachments: { filename: string; mimeType: string; size: number; attachmentId: string }[]
+  /** Raw List-Unsubscribe / List-Unsubscribe-Post headers, when present. */
+  listUnsubscribe?: string | null
+  listUnsubscribePost?: string | null
 }
 
 export interface FullMessage extends MessageSummary {
@@ -101,6 +104,23 @@ export interface OutgoingMail {
   threadId?: string
   inReplyTo?: string | null
   references?: string | null
+  /** Send-as alias; defaults to the account address. */
+  from?: string
+  attachments?: OutgoingAttachment[]
+}
+
+export interface OutgoingAttachment {
+  filename: string
+  mimeType: string
+  /** Standard base64 (not url-safe). */
+  data: string
+  size: number
+}
+
+export interface Label {
+  id: string
+  name: string
+  type: 'system' | 'user'
 }
 
 export interface AiRequest {

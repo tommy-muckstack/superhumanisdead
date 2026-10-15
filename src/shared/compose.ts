@@ -1,6 +1,6 @@
-import { textToHtml } from './mime'
+import { markupToText, renderMarkup } from './format'
 import { OPERATOR_HINTS } from './search'
-import type { OutgoingMail } from './types'
+import type { OutgoingAttachment, OutgoingMail } from './types'
 
 /** Pure composer helpers shared by the renderer and tests. */
 export interface DraftLike {
@@ -13,6 +13,8 @@ export interface DraftLike {
   threadId?: string
   inReplyTo?: string | null
   references?: string | null
+  from?: string
+  attachments?: OutgoingAttachment[]
 }
 
 export function splitAddresses(value: string): string[] {
@@ -20,14 +22,20 @@ export function splitAddresses(value: string): string[] {
 }
 
 export function draftToMail(draft: DraftLike, signature = ''): OutgoingMail {
-  const text = `${draft.body}${signature ? `\n\n${signature}` : ''}${draft.quoted}`
+  const markup = `${draft.body}${signature ? `\n\n${signature}` : ''}`
+  const quoted = draft.quoted.replace(/^\n+/, '')
+  const text = `${markupToText(markup)}${draft.quoted}`
+  // Quoted history is already "> " prefixed, so it renders as a blockquote.
+  const html = renderMarkup(quoted ? `${markup}\n\n${quoted}` : markup)
   return {
     to: splitAddresses(draft.to),
     cc: splitAddresses(draft.cc),
     bcc: splitAddresses(draft.bcc),
     subject: draft.subject,
     text,
-    html: textToHtml(text),
+    html,
+    from: draft.from,
+    attachments: draft.attachments?.length ? draft.attachments : undefined,
     threadId: draft.threadId,
     inReplyTo: draft.inReplyTo,
     references: draft.references,
