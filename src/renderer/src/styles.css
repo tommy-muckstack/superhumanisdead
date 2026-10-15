@@ -1,29 +1,43 @@
-/* DuperHuman design tokens. Tuned to Superhuman's dark "Carbon" look: near-black
-   surfaces with a faint cool tint, soft grey type, one blue accent, dense rows. */
+/* SuperhumanIsDead tokens. Light values come from the shared IsDead design system
+   (superhuman theme, vendored in ./isdead). Dark values are measured from the live
+   app (docs/SUPERHUMAN_SPEC.md 12.2). */
 :root {
-  --bg: #141518;
-  --bg-list: #16171b;
-  --bg-pane: #1a1b1f;
-  --bg-raised: #202126;
-  --bg-hover: #1e1f24;
-  --bg-selected: #25272d;
-  --bg-input: #0f1013;
-  --line: #26282e;
-  --line-strong: #33363d;
-  --text: #e9e9ec;
-  --text-2: #a4a7b0;
-  --text-3: #6d7079;
-  --accent: #6b8cff;
-  --accent-soft: rgba(107, 140, 255, 0.16);
-  --unread: #7aa2ff;
-  --danger: #ff6b6b;
-  --ok: #52c98c;
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --radius: 8px;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --mono: 'SF Mono', Menlo, monospace;
+  --bg: var(--ids-color-bg);
+  --bg-list: var(--ids-color-bg);
+  --bg-pane: var(--ids-color-surface-alt);
+  --bg-raised: var(--ids-color-surface);
+  --bg-hover: #F7F6F3;
+  --bg-selected: var(--ids-color-accent-soft);
+  --bg-input: var(--ids-color-surface);
+  --line: var(--ids-color-border);
+  --line-strong: #C9C5BE;
+  --text: var(--ids-color-text);
+  --text-2: var(--ids-color-text-muted);
+  --text-3: var(--ids-color-text-subtle);
+  --accent: var(--ids-color-accent);
+  --accent-edge: var(--ids-color-accent);
+  --accent-soft: var(--ids-color-accent-soft);
+  --unread: var(--ids-color-unread);
+  --danger: var(--ids-color-danger);
+  --ok: var(--ids-color-success);
+  --hint-bar: var(--ids-color-hint-bar);
+  --shadow: 0 12px 40px rgba(20, 20, 20, 0.16), 0 1px 3px rgba(20, 20, 20, 0.08);
+  --radius: var(--ids-radius-md);
+  --font: var(--ids-font-sans);
+  --mono: var(--ids-font-mono);
   --list-width: 420px;
-  --row-height: 56px;
+  --rail-width: 40px;
+  --pane-width: 423px;
+  --row-height: 36px;
+  --ease-accordion: cubic-bezier(0.87, 0, 0.13, 1);
+}
+[data-theme='dark'] {
+  --bg: #282828; --bg-list: #282828; --bg-pane: #1F1E1C; --bg-raised: #383735;
+  --bg-hover: #333231; --bg-selected: #484443; --bg-input: #1F1E1C;
+  --line: #3A3937; --line-strong: #4A4846;
+  --text: #F1F1F1; --text-2: #A8A6A2; --text-3: #7A7874;
+  --accent-edge: #C4ACEA; --accent-soft: #484443; --hint-bar: #444875;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 * { box-sizing: border-box; }

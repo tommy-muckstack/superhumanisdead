@@ -1,4 +1,4 @@
-# DuperHuman
+# SuperhumanIsDead
 
 A keyboard-first Gmail client with a built-in AI assistant. Runs on your Mac, talks to
 Gmail and Claude with your own keys, and has no server of its own.
@@ -12,7 +12,7 @@ Other), `j` `k` `e` `h` triage, snooze, a Cmd+K command palette, undo toasts, an
 Prerequisites: macOS, Node 22 (`nvm use` reads `.nvmrc`), npm.
 
 ```bash
-git clone <this repo> && cd DuperHuman
+git clone <this repo> && cd SuperhumanIsDead
 ./scripts/setup.sh        # installs dependencies, runs tests, builds
 npm run dev               # launches the app with hot reload
 ```
@@ -31,7 +31,7 @@ Gmail access needs an OAuth client that belongs to you. Google does not let apps
    Scopes add `https://www.googleapis.com/auth/gmail.modify`. Under Test users add your
    own Gmail address. You do not need to publish or verify the app for personal use.
 4. **Credentials → Create credentials → OAuth client ID → Desktop app.** Copy the client
-   ID and client secret into DuperHuman's setup screen.
+   ID and client secret into SuperhumanIsDead's setup screen.
 5. Click **Save and sign in with Google**. Your browser opens, you approve, and the app
    receives the token on `127.0.0.1`. Google shows an "unverified app" warning because
    this is your own test app; click Continue.
@@ -87,7 +87,7 @@ src/renderer  React UI: thread list, reading pane, composer, palette, overlays, 
 ## Build a Mac app
 
 ```bash
-npm run dist:mac     # produces dist/DuperHuman-<version>.dmg (unsigned unless you add an identity)
+npm run dist:mac     # produces dist/SuperhumanIsDead-<version>.dmg (unsigned unless you add an identity)
 ```
 
 Set `CSC_NAME` or `CSC_LINK`/`CSC_KEY_PASSWORD` for electron-builder to sign and notarize.

@@ -1,6 +1,6 @@
 {
-  "name": "duperhuman",
-  "productName": "DuperHuman",
+  "name": "superhumanisdead",
+  "productName": "SuperhumanIsDead",
   "version": "0.1.0",
   "description": "Keyboard-first Gmail client with a built-in AI assistant. Local, no server.",
   "main": "./out/main/index.js",
@@ -29,8 +29,6 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
-    "@fontsource/dm-mono": "^5.3.0",
-    "@fontsource/dm-sans": "^5.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }

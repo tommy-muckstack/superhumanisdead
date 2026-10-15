@@ -579,11 +579,20 @@ export function App() {
     return [
       { id: 'triage', label: 'Sort this list with AI', hint: 'Moves newsletters and notifications to Other', run: () => void triage() },
       ...commands,
+      { id: 'theme', label: 'Toggle dark theme', run: () => void saveSettings({ theme: settings?.theme === 'dark' ? 'light' : 'dark' }) },
       { id: 'settings', label: 'Settings', hint: account.email, run: () => setOverlay('settings') },
       { id: 'signout', label: 'Sign out', run: () => void window.duper.auth.signOut().then(() => setAccount({ email: '', signedIn: false })) },
     ]
   }, [run, triage, account.email])
 
+  useEffect(() => {
+    const theme = settings?.theme ?? 'light'
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => (document.documentElement.dataset['theme'] = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme)
+    apply()
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
+  }, [settings?.theme])
   const saveSettings = async (patch: Partial<Settings>) => setSettings(await window.duper.settings.set(patch))
   const signIn = async () => setAccount(await window.duper.auth.signIn())
   const startDemo = () => {
