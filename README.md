@@ -130,4 +130,19 @@ Highlights: `E` done, `⇧E` not done, `H` remind me (natural language, "only if
 `#` trash, `!` spam, `?` Ask AI, `0` calendar (`-` `T` `=` to move days), `g ;` snippets,
 `;name` inline snippets and `⌘;` picker in the composer, `⌘⇧L` send later, `⌘⇧H` remind if no reply,
 `⌘⇧Z` send instantly, `⌘⇧↵` send and mark done. Undo send uses the delay set in Settings.
-Calendar needs the `calendar.readonly` scope: sign out and back in after upgrading.
+Calendar uses the `calendar.events` scope (read and write): sign out and back in after upgrading.
+
+### More shortcuts
+- Reading: `N`/`P` next/previous message, `O` expand, `Space`/`⇧Space` page, `←` folder and label menu, `⌘O` links and attachments, `⌘P` print.
+- Organize: `V` move, `L` labels, `Y` remove the label you are viewing, `⇧Y` remove all labels, `[` / `]` remove then next/previous, `⇧M` mute, `⌘U` unsubscribe (asks first).
+- Accounts: `Ctrl+1`–`9` switch account; ⌘K → Add another account.
+- Pop-out: `⇧C`, `⇧R`, `⇧↵`, `⇧F` open the draft in a floating window; `⌘⇧P` pops it in/out, `⌘D` toggles focus between draft and thread.
+- Composer: `⌘B` `⌘I` `⌘U` `⌘K` `⌘⇧X` `⌘⇧7/8/9` (bold, italic, underline, link, strike, numbered, bullets, quote), `⌘⇧A` attach (or drop files), `⌘⇧I` Instant Intro, `⌘⇧F` change From, `:name` emoji.
+- Calendar: `2` week view, `B` quick-create ("Lunch with Ada tomorrow 1pm for 45m"), `⇧B` full form. Guests only get an invitation if you add them, and the form says so.
+
+### Read statuses (off by default)
+Settings → Read statuses. Turn it on and every email you send carries an invisible 1×1 image from a server you host
+(`node tools/pixel-server.mjs`). Recipients are not told and some mail apps preload images, so treat it as a hint. Nothing is added unless both the host and the toggle are set.
+
+### Smoke test
+`npm run build`, serve `out/renderer` (`python3 -m http.server 5181 -d out/renderer`), then `SMOKE_CHROME=/usr/bin/google-chrome node scripts/smoke.mjs`. It drives the sample inbox in a browser with a stubbed preload; no Google, no email.
