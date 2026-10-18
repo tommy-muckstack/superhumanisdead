@@ -17,9 +17,10 @@ The Electron desktop app (`src/`) has no analytics and sends nothing.
   `localStorage.isdead_ph_debug = "1"` (verbose logs, and automated browsers are accepted, for local verification only).
 
 ## Privacy scrub
-`scrub` in `web/analytics.ts` runs as `before_send` on every event: `$current_url`, `$referrer`, `$initial_current_url`,
-`$initial_referrer`, `$prev_pageview_pathname`, `$pathname`, `$initial_pathname`, `$session_entry_url` and `$session_entry_pathname` (also inside `$set` / `$set_once`) keep only origin + path,
-with no query string or hash (so `?next=` and `?mode=` never leave the browser), and the page `title` property is deleted.
+`scrub` in `web/analytics.ts` runs as `before_send` on every event: every key ending in `url`, `referrer` or `pathname`
+(`$current_url`, `$referrer`, `$initial_current_url`, `$session_entry_url`, ...) keeps only origin + path, with no query
+string or hash (so `?next=` and `?mode=` never leave the browser). This covers `properties`, `$set`, `$set_once` and the
+person properties nested in `properties.$set` / `properties.$set_once`. The page `title` property is deleted.
 
 ## Super properties (registered on every event)
 | property | value | meaning |

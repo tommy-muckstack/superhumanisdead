@@ -19,4 +19,8 @@ describe('web analytics taxonomy', () => {
     expect(e.properties).toEqual({ $current_url: 'https://yourappisdead.com/superhumanisdead/login/', $referrer: '$direct', target: 'signup' })
     expect(e.$set_once).toEqual({ $initial_current_url: 'https://a.test/p', $session_entry_url: 'https://a.test/e', $initial_pathname: '/p', $session_entry_pathname: '/s' })
   })
+  it('also scrubs person properties nested in properties.$set / $set_once, by key suffix', () => {
+    const e = scrub({ properties: { $some_new_url: 'https://a.test/x?y=1', target: 'login', $set: { $current_url: 'https://a.test/p?q=1' }, $set_once: { $initial_current_url: 'https://a.test/i?utm=1', $initial_pathname: '/i?x', $initial_os: 'Mac OS X' } } })
+    expect(e.properties).toEqual({ $some_new_url: 'https://a.test/x', target: 'login', $set: { $current_url: 'https://a.test/p' }, $set_once: { $initial_current_url: 'https://a.test/i', $initial_pathname: '/i', $initial_os: 'Mac OS X' } })
+  })
 })

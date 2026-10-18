@@ -22,12 +22,15 @@ export const LEGACY_PROPS = ['app', 'app_family', 'base_path', 'suite_id', 'app_
 
 // Privacy: URL properties keep only origin + path (query strings and hashes can carry user content, e.g. ?next=) and the
 // page title is dropped. Runs as before_send on every event, including the $set / $set_once person properties.
-const URL_PROPS = ['$current_url', '$referrer', '$initial_current_url', '$initial_referrer', '$prev_pageview_pathname', '$pathname', '$initial_pathname', '$session_entry_url', '$session_entry_pathname']
+// Any key ending in url / referrer / pathname ($current_url, $initial_referrer, $session_entry_url, ...).
+const URL_KEY = /(url|referrer|pathname)$/i
 const cleanUrl = (v: unknown) => (typeof v !== 'string' || !v || v === '$direct' ? v : v.split(/[?#]/)[0])
 type Bag = Record<string, unknown>
 export function scrub<E extends { properties?: Bag; $set?: Bag; $set_once?: Bag } | null>(e: E): E {
   if (!e?.properties) return e
-  for (const bag of [e.properties, e.$set, e.$set_once]) if (bag) for (const k of URL_PROPS) if (k in bag) bag[k] = cleanUrl(bag[k])
+  // Person properties appear both at the top level and nested in properties ($set / $set_once).
+  for (const bag of [e.properties, e.$set, e.$set_once, e.properties.$set, e.properties.$set_once] as unknown[])
+    if (bag && typeof bag === 'object') for (const k of Object.keys(bag)) if (URL_KEY.test(k)) (bag as Bag)[k] = cleanUrl((bag as Bag)[k])
   delete e.properties.title
   return e
 }
