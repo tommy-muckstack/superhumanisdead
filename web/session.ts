@@ -1,6 +1,9 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth'
 import { firebaseConfig } from './auth'
+import { identify, resetIdentity, startAnalytics, trackNow } from './analytics'
+
+startAnalytics()
 
 // Signed-in state for the static site: a small account menu (with Sign out) on every page.
 // A marker cookie (sh_session) mirrors the Firebase state so other tools can see it; it holds no secret.
@@ -20,6 +23,8 @@ function mount(email: string) {
   const menu = root.querySelector<HTMLElement>('.sh-menu')!
   btn.onclick = () => { menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)) }
   root.querySelector<HTMLButtonElement>('.sh-menu-out')!.onclick = async () => {
+    await trackNow('app_signed_out')
+    resetIdentity()
     await signOut(auth).catch(() => {})
     setMarker(false)
     location.href = BASE
@@ -28,6 +33,6 @@ function mount(email: string) {
 }
 
 onAuthStateChanged(auth, (user) => {
-  if (user) { setMarker(true); mount(user.email ?? 'Signed in') }
+  if (user) { setMarker(true); identify(user.uid); mount(user.email ?? 'Signed in') }
   else { setMarker(false); root?.remove(); root = null; document.body.classList.remove('sh-authed') }
 })

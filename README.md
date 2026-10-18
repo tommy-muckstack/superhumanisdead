@@ -156,3 +156,7 @@ This project is part of **[yourappisdead](https://yourappisdead.com)**, a market
 - Want a different app killed? [Submit it on yourappisdead](https://yourappisdead.com/#submit).
 - Please never commit secrets, keys or copied third-party assets (logos, screenshots, fonts without an open license).
 - Shared design tokens, fonts and login live in [`isdead-design`](https://github.com/tommy-muckstack/isdead-design).
+
+## Analytics
+
+The website (`web/`) sends PostHog events to the shared IsDead project. See [docs/ANALYTICS.md](docs/ANALYTICS.md). The desktop app sends nothing.
