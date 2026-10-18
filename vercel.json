@@ -4,6 +4,8 @@
   "outputDirectory": "out/web",
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/superhumanisdead/ingest/static/:path*", "destination": "https://us-assets.i.posthog.com/static/:path*" },
+    { "source": "/superhumanisdead/ingest/:path*", "destination": "https://us.i.posthog.com/:path*" },
     { "source": "/superhumanisdead", "destination": "/" },
     { "source": "/superhumanisdead/signup", "destination": "/login/?mode=signup" },
     { "source": "/superhumanisdead/app", "destination": "/" },
