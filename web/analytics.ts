@@ -18,7 +18,7 @@ export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
 export const EVENT_PREFIXES = ['app_', 'landing_'] as const
 export const superProps = (surface: Surface) => ({ product: APP, surface, platform: 'web' as const })
 /** Super properties older IsDead taxonomies (and other apps on this shared origin) persisted in the yourappisdead.com cookie. */
-export const LEGACY_PROPS = ['app', 'app_family', 'base_path', 'suite_id', 'app_id', 'schema_version', 'source', 'site_id', 'environment', 'account_type'] as const
+export const LEGACY_PROPS = ['app', 'app_family', 'base_path', 'suite_id', 'app_id', 'schema_version', 'source', 'site_id', 'environment', 'ads_blocked', 'account_type'] as const
 
 // Privacy: URL properties keep only origin + path (query strings and hashes can carry user content, e.g. ?next=) and the
 // page title is dropped. Runs as before_send on every event, including the $set / $set_once person properties.
@@ -57,7 +57,7 @@ function client(): Promise<PH | null> {
     p.init(KEY, {
       // Our own origin (vercel.json rewrites <BASE>/ingest → us.i.posthog.com) so ad blockers don't drop requests.
       api_host: `${location.origin}${BASE}/ingest`, ui_host: UI_HOST,
-      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false, before_send: scrub,
+      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false, capture_dead_clicks: false, capture_exceptions: false, disable_surveys: true, before_send: scrub,
       persistence: 'localStorage+cookie', person_profiles: 'always', debug, opt_out_useragent_filter: debug,
     })
     // Every IsDead app shares the yourappisdead.com cookie: clear other apps' leftovers, then set ours.
@@ -82,7 +82,7 @@ export async function trackNow(event: EventName, props: Props = {}) {
   ])
 }
 /** Signed-in users are identified by Firebase uid (shared across the IsDead family). */
-export function identify(uid: string) { void client().then((p) => p?.identify(uid, { account_type: 'firebase' })) }
+export function identify(uid: string) { void client().then((p) => { p?.register({ account_type: 'firebase' }); p?.identify(uid, { account_type: 'firebase' }) }) }
 /** reset() wipes super properties too, so put ours back straight away. */
 export function resetIdentity() { void client().then((p) => { p?.reset(); p?.register(superProps(surfaceOf(location.pathname))) }) }
 

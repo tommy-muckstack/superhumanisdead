@@ -3,6 +3,7 @@
   "buildCommand": "npm run build:web",
   "outputDirectory": "out/web",
   "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     { "source": "/superhumanisdead/ingest/static/:path*", "destination": "https://us-assets.i.posthog.com/static/:path*" },
     { "source": "/superhumanisdead/ingest/:path*", "destination": "https://us.i.posthog.com/:path*" },
