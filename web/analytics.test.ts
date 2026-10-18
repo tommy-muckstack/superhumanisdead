@@ -15,8 +15,8 @@ describe('web analytics taxonomy', () => {
     for (const k of LEGACY_PROPS) expect(Object.keys(superProps('landing'))).not.toContain(k)
   })
   it('scrubs query strings, hashes and the page title before sending', () => {
-    const e = scrub({ properties: { $current_url: 'https://yourappisdead.com/superhumanisdead/login/?mode=signup#x', $referrer: '$direct', title: 'Log in', target: 'signup' }, $set_once: { $initial_current_url: 'https://a.test/p?q=1' } })
+    const e = scrub({ properties: { $current_url: 'https://yourappisdead.com/superhumanisdead/login/?mode=signup#x', $referrer: '$direct', title: 'Log in', target: 'signup' }, $set_once: { $initial_current_url: 'https://a.test/p?q=1', $session_entry_url: 'https://a.test/e?x=1', $initial_pathname: '/p?q', $session_entry_pathname: '/s#h' } })
     expect(e.properties).toEqual({ $current_url: 'https://yourappisdead.com/superhumanisdead/login/', $referrer: '$direct', target: 'signup' })
-    expect(e.$set_once).toEqual({ $initial_current_url: 'https://a.test/p' })
+    expect(e.$set_once).toEqual({ $initial_current_url: 'https://a.test/p', $session_entry_url: 'https://a.test/e', $initial_pathname: '/p', $session_entry_pathname: '/s' })
   })
 })
