@@ -16,6 +16,11 @@ The Electron desktop app (`src/`) has no analytics and sends nothing.
 - Analytics is off when the browser sends Do Not Track, and on `localhost` / `127.0.0.1` unless
   `localStorage.isdead_ph_debug = "1"` (verbose logs, and automated browsers are accepted, for local verification only).
 
+## Privacy scrub
+`scrub` in `web/analytics.ts` runs as `before_send` on every event: `$current_url`, `$referrer`, `$initial_current_url`,
+`$initial_referrer`, `$prev_pageview_pathname` and `$pathname` (also inside `$set` / `$set_once`) keep only origin + path,
+with no query string or hash (so `?next=` and `?mode=` never leave the browser), and the page `title` property is deleted.
+
 ## Super properties (registered on every event)
 | property | value | meaning |
 | --- | --- | --- |

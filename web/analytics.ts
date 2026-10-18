@@ -20,6 +20,18 @@ export const superProps = (surface: Surface) => ({ product: APP, surface, platfo
 /** Super properties older IsDead taxonomies (and other apps on this shared origin) persisted in the yourappisdead.com cookie. */
 export const LEGACY_PROPS = ['app', 'app_family', 'base_path', 'suite_id', 'app_id', 'schema_version', 'source', 'site_id', 'environment', 'account_type'] as const
 
+// Privacy: URL properties keep only origin + path (query strings and hashes can carry user content, e.g. ?next=) and the
+// page title is dropped. Runs as before_send on every event, including the $set / $set_once person properties.
+const URL_PROPS = ['$current_url', '$referrer', '$initial_current_url', '$initial_referrer', '$prev_pageview_pathname', '$pathname']
+const cleanUrl = (v: unknown) => (typeof v !== 'string' || !v || v === '$direct' ? v : v.split(/[?#]/)[0])
+type Bag = Record<string, unknown>
+export function scrub<E extends { properties?: Bag; $set?: Bag; $set_once?: Bag } | null>(e: E): E {
+  if (!e?.properties) return e
+  for (const bag of [e.properties, e.$set, e.$set_once]) if (bag) for (const k of URL_PROPS) if (k in bag) bag[k] = cleanUrl(bag[k])
+  delete e.properties.title
+  return e
+}
+
 const BASE = '/superhumanisdead'
 // The Vercel env sets NEXT_PUBLIC_POSTHOG_KEY on every IsDead project; the token is publishable, so it is also the fallback.
 const KEY = (import.meta.env.NEXT_PUBLIC_POSTHOG_KEY as string | undefined) || 'phc_nrzr9eEcwg6H89hkh4DmBU4nL9ntSArzQXV2SR2vaE2F'
@@ -42,7 +54,7 @@ function client(): Promise<PH | null> {
     p.init(KEY, {
       // Our own origin (vercel.json rewrites <BASE>/ingest → us.i.posthog.com) so ad blockers don't drop requests.
       api_host: `${location.origin}${BASE}/ingest`, ui_host: UI_HOST,
-      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false,
+      capture_pageview: false, capture_pageleave: true, autocapture: false, disable_session_recording: true, capture_heatmaps: false, capture_performance: false, before_send: scrub,
       persistence: 'localStorage+cookie', person_profiles: 'always', debug, opt_out_useragent_filter: debug,
     })
     // Every IsDead app shares the yourappisdead.com cookie: clear other apps' leftovers, then set ours.
